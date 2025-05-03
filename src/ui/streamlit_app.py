@@ -4,29 +4,6 @@ import os
 from src.models.simulation import run_date
 
 
-def setup_api_keys():
-    """Set up API keys from Streamlit secrets or environment variables.
-
-    This function checks for API keys in Streamlit secrets and sets them
-    as environment variables for EDSL to use.
-    """
-    # Set up API keys from secrets
-    if hasattr(st, "secrets") and "edsl" in st.secrets:
-        edsl_secrets = st.secrets.edsl
-
-        # Set EDSL key if available
-        if "api_key" in edsl_secrets:
-            os.environ["EDSL_API_KEY"] = edsl_secrets.api_key
-
-    # Check for the keys we need
-    if "EDSL_API_KEY" not in os.environ:
-        st.warning(
-            "⚠️ EDSL API key not found in secrets. "
-            "You may encounter issues with model services. "
-            "For Streamlit Community Cloud, please set up your secrets.toml file."
-        )
-
-
 def setup_ui():
     """Set up the Streamlit UI."""
     st.set_page_config(page_title="🎧 love.dj", page_icon="🎧")

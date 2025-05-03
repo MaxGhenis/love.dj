@@ -3,15 +3,11 @@ import streamlit as st
 from src.ui.streamlit_app import (
     setup_ui,
     display_results,
-    setup_api_keys,
     create_real_time_transcript_container,
     update_transcript,
 )
 from src.models.simulation import run_date
 
-
-# Set up API keys from Streamlit secrets
-setup_api_keys()
 
 # Set up the UI
 ui_inputs = setup_ui()
