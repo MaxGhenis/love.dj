@@ -19,6 +19,31 @@ A dating simulator powered by AI that simulates conversations between two people
    pip install -r requirements.txt
    ```
 
+## API Key Setup
+
+The application requires API keys to use language models through EDSL:
+
+### Local Development
+
+1. Create a `.streamlit/secrets.toml` file in your project directory
+2. Use the `secrets.toml.example` file as a template
+3. Add your EDSL API key and any model provider API keys you want to use
+
+Example `.streamlit/secrets.toml`:
+```toml
+[edsl]
+api_key = "your-edsl-api-key-here"
+
+[edsl.openai]
+api_key = "your-openai-api-key-here"
+```
+
+### Streamlit Community Cloud Deployment
+
+1. Go to your app's settings in Streamlit Community Cloud
+2. Navigate to the "Secrets" section
+3. Add your secrets in the same format as the `.streamlit/secrets.toml` file
+
 ## Usage
 
 Run the application with:
