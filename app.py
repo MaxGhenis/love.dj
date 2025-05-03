@@ -8,6 +8,9 @@ from src.ui.streamlit_app import (
     update_transcript,
 )
 from src.models.simulation import run_date
+from edsl import Config
+
+Config.remote_inference.default = True
 
 # Set up API keys from Streamlit secrets
 setup_api_keys()
@@ -59,7 +62,7 @@ if ui_inputs["go"]:
                 speaker,
                 message,
                 ui_inputs["gender_a"],
-                ui_inputs["gender_b"]
+                ui_inputs["gender_b"],
             )
 
             # Determine who's speaking next (for typing indicator)
@@ -114,7 +117,7 @@ if ui_inputs["go"]:
             ui_inputs["theme"],
             ui_inputs["service_name"],
             ui_inputs["gender_a"],
-            ui_inputs["gender_b"]
+            ui_inputs["gender_b"],
         )
 
         transcript = []
@@ -173,7 +176,7 @@ if ui_inputs["go"]:
                     a_entry[0],
                     a_entry[1],
                     ui_inputs["gender_a"],
-                    ui_inputs["gender_b"]
+                    ui_inputs["gender_b"],
                 )
                 time.sleep(0.5)
                 # Show a rating calculation message
