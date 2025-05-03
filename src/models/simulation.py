@@ -7,7 +7,7 @@ from src.models.agents import (
     DEFAULT_PROFILES,
 )
 
-def run_date(profile_a, profile_b, name_a, name_b, n_rounds, model_name, theme=None):
+def run_date(profile_a, profile_b, name_a, name_b, n_rounds, model_name, theme=None, service_name=None):
     """Simulate a date, return transcript and ratings.
     
     Args:
@@ -18,6 +18,7 @@ def run_date(profile_a, profile_b, name_a, name_b, n_rounds, model_name, theme=N
         n_rounds: Number of back-and-forth exchanges
         model_name: Name of the LLM to use
         theme: Optional theme/location for the date
+        service_name: Optional service provider name
         
     Returns:
         tuple: (transcript, rating_a, rating_b)
@@ -32,6 +33,8 @@ def run_date(profile_a, profile_b, name_a, name_b, n_rounds, model_name, theme=N
     
     # Keep track of the model being used
     print(f"Using model in simulation: {model_name}")
+    if service_name:
+        print(f"Using service provider: {service_name}")
 
     transcript = []  # list[(speaker, text)]
     history_txt = ""
@@ -46,7 +49,7 @@ def run_date(profile_a, profile_b, name_a, name_b, n_rounds, model_name, theme=N
     # Keep the persona descriptions without adding names to avoid duplication
 
     # Seed opener from A so the loop is symmetric
-    opener = get_opener(model_name, agent_a)
+    opener = get_opener(model_name, agent_a, service_name)
     transcript.append((display_a, opener))
     history_txt += f"{display_a}: {opener}\n"
 
@@ -62,14 +65,15 @@ def run_date(profile_a, profile_b, name_a, name_b, n_rounds, model_name, theme=N
                 agent_other, 
                 turn, 
                 speaker, 
-                history_txt
+                history_txt,
+                service_name
             )
             
             transcript.append((display, answer))
             history_txt += f"{display}: {answer}\n"
 
     # ---------- each agent rates the date ----------
-    rating_a = get_rating(model_name, agent_a, history_txt)
-    rating_b = get_rating(model_name, agent_b, history_txt)
+    rating_a = get_rating(model_name, agent_a, history_txt, service_name)
+    rating_b = get_rating(model_name, agent_b, history_txt, service_name)
 
     return transcript, rating_a, rating_b

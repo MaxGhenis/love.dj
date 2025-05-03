@@ -32,26 +32,14 @@ def create_agent(name, profile, default_profile):
     )
 
 
-def get_opener(model_name, agent):
+def get_opener(model_name, agent, service_name=None):
     """Get an opening message from an agent."""
-    print(f"Creating opener with model: {model_name}")
-    
-    # Determine the service based on the model name
-    service_name = None
-    if "gpt" in model_name:
-        service_name = "openai"
-    elif "claude" in model_name:
-        service_name = "anthropic"
-    elif "gemini" in model_name:
-        service_name = "google"
-        
-    # Create the model with explicit service if needed
     if service_name:
         model = Model(model_name, service_name=service_name)
-        print(f"Model instance created with service {service_name}: {model}")
+        print(f"Model instance created for opener with service {service_name}: {model}")
     else:
         model = Model(model_name)
-        print(f"Model instance created: {model}")
+        print(f"Model instance created for opener: {model}")
     
     return (
         QuestionFreeText(
@@ -70,23 +58,11 @@ def get_opener(model_name, agent):
     )
 
 
-def get_response(model_name, agent_self, agent_other, turn, speaker, history_txt):
+def get_response(model_name, agent_self, agent_other, turn, speaker, history_txt, service_name=None):
     """Get a response from an agent based on conversation history."""
-    print(f"Creating response with model: {model_name}")
-    
-    # Determine the service based on the model name
-    service_name = None
-    if "gpt" in model_name:
-        service_name = "openai"
-    elif "claude" in model_name:
-        service_name = "anthropic"
-    elif "gemini" in model_name:
-        service_name = "google"
-        
-    # Create the model with explicit service if needed
     if service_name:
         model = Model(model_name, service_name=service_name)
-        print(f"Model instance created with service {service_name}: {model}")
+        print(f"Model instance created for response with service {service_name}: {model}")
     else:
         model = Model(model_name)
         print(f"Model instance created for response: {model}")
@@ -119,23 +95,11 @@ def get_response(model_name, agent_self, agent_other, turn, speaker, history_txt
     )
 
 
-def get_rating(model_name, agent, history_txt):
+def get_rating(model_name, agent, history_txt, service_name=None):
     """Get a rating from an agent based on conversation history."""
-    print(f"Creating rating with model: {model_name}")
-    
-    # Determine the service based on the model name
-    service_name = None
-    if "gpt" in model_name:
-        service_name = "openai"
-    elif "claude" in model_name:
-        service_name = "anthropic"
-    elif "gemini" in model_name:
-        service_name = "google"
-        
-    # Create the model with explicit service if needed
     if service_name:
         model = Model(model_name, service_name=service_name)
-        print(f"Model instance created with service {service_name}: {model}")
+        print(f"Model instance created for rating with service {service_name}: {model}")
     else:
         model = Model(model_name)
         print(f"Model instance created for rating: {model}")

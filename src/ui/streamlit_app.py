@@ -28,13 +28,39 @@ def setup_ui():
     col3, col4 = st.columns(2)
     with col3:
         rounds = st.slider("How many back-and-forths?", 1, 6, value=3)
-        model_options = ["gpt-4o", "claude-3-opus-20240229", "claude-3-sonnet-20240229", "gemini-1.5-pro"]
-        model_name = st.selectbox(
-            "LLM to use",
-            options=model_options,
-            index=0,
-            help="Select the language model to use for the simulation"
-        )
+        
+        # Split into two columns for model name and service provider
+        model_col1, model_col2 = st.columns([3, 2])
+        
+        with model_col1:
+            model_name = st.text_input(
+                "Model name", 
+                value="gpt-4o",
+                help="Enter any model name that EDSL supports (e.g., gpt-4o, claude-3-opus-20240229, gemini-1.5-pro)"
+            )
+            
+        with model_col2:
+            service_providers = [
+                "None (auto)",
+                "anthropic",
+                "azure",
+                "bedrock",
+                "deep_infra",
+                "deepseek",
+                "google",
+                "groq",
+                "mistral",
+                "ollama",
+                "openai",
+                "perplexity",
+                "together"
+            ]
+            service_name = st.selectbox(
+                "Service provider",
+                options=service_providers,
+                index=0,
+                help="Select the service provider for this model"
+            )
     with col4:
         theme = st.text_input(
             "Date location/theme (optional)", 
@@ -51,6 +77,7 @@ def setup_ui():
         "profile_b": profile_b,
         "rounds": rounds,
         "model_name": model_name,
+        "service_name": None if service_name == "None (auto)" else service_name,
         "theme": theme,
         "go": go
     }
