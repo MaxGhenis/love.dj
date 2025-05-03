@@ -8,9 +8,7 @@ from src.ui.streamlit_app import (
     update_transcript,
 )
 from src.models.simulation import run_date
-from edsl import Config
 
-Config.remote_inference.default = True
 
 # Set up API keys from Streamlit secrets
 setup_api_keys()
