@@ -116,37 +116,157 @@ def setup_ui():
         "go": go
     }
 
-def display_results(transcript, score_a, score_b, name_a, name_b, model_name=""):
-    """Display the results of the date simulation."""
-    if model_name:
-        st.success(f"Date simulated with model: {model_name}")
-        
+def create_real_time_transcript_container():
+    """Create a container for real-time transcript display.
+    
+    Returns:
+        tuple: (transcript_container, message_placeholders, transcript_messages)
+              where message_placeholders is for real-time updates and
+              transcript_messages keeps track of all messages
+    """
     st.subheader("💬 Transcript")
+    
+    # Add some CSS to style the transcript container
+    st.markdown("""
+    <style>
+    .chat-message {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-direction: column;
+    }
+    .chat-message.user-a {
+        background-color: rgba(240, 242, 246, 0.5);
+        border-left: 5px solid #9AD1F5;
+    }
+    .chat-message.user-b {
+        background-color: rgba(240, 242, 246, 0.5);
+        border-left: 5px solid #F5C3A9;
+    }
+    .chat-message .avatar {
+        font-size: 1.25rem;
+        width: 2.5rem;
+        height: 1.5rem;
+        text-align: center;
+        float: left;
+        margin-right: 1rem;
+    }
+    .chat-message .message {
+        flex-grow: 1;
+    }
+    .chat-message .name {
+        font-weight: bold;
+        font-size: 0.9rem;
+        color: #424242;
+    }
+    .typing-indicator {
+        display: inline-block;
+        margin-left: 5px;
+    }
+    .typing-indicator span {
+        display: inline-block;
+        background-color: #808080;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        margin: 0 1px;
+        animation: typing 1.5s infinite ease-in-out;
+    }
+    .typing-indicator span:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+    .typing-indicator span:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+    @keyframes typing {
+        0%, 60%, 100% {
+            transform: translateY(0);
+        }
+        30% {
+            transform: translateY(-5px);
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
     # Create a container with a bordered style
     transcript_container = st.container()
-    with transcript_container:
-        for speaker, line in transcript:
-            # Check if the line already starts with the speaker's name to avoid duplication
-            if line.startswith(f"{speaker}:") or line.startswith(f"{speaker},") or line.startswith(f"Hi, I'm {speaker}"):
-                st.markdown(f"**{speaker}:** {line}")
-            else:
-                st.markdown(f"**{speaker}:** {line}")
+    # List to store message placeholders for real-time updates
+    message_placeholders = []
+    # List to track all transcript messages
+    transcript_messages = []
     
-    st.subheader("⭐ Ratings")
-    
-    # Use the provided names or default to A/B
-    display_a = name_a if name_a else "A"
-    display_b = name_b if name_b else "B"
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(f"{display_a}'s score", f"{score_a}/10")
-    with col2:
-        st.metric(f"{display_b}'s score", f"{score_b}/10")
-    with col3:
-        st.metric("Average", f"{(score_a+score_b)/2:.1f}/10")
+    return transcript_container, message_placeholders, transcript_messages
 
-    st.caption(
-        "Powered by EDSL – agents, scenarios & questions handle the heavy lifting of multi-agent dialogue"
-    )
+
+def update_transcript(transcript_container, message_placeholders, transcript_messages, speaker, message):
+    """Add a new message to the transcript in real-time.
+    
+    Args:
+        transcript_container: The container to display messages in
+        message_placeholders: List of message placeholders
+        transcript_messages: List of all transcript messages
+        speaker: The name of the speaker
+        message: The message content
+    """
+    with transcript_container:
+        # Create a new placeholder for this message if needed
+        if len(message_placeholders) <= len(transcript_messages):
+            placeholder = st.empty()
+            message_placeholders.append(placeholder)
+        else:
+            placeholder = message_placeholders[len(transcript_messages)]
+        
+        # Determine which user class to use (for styling)
+        if not transcript_messages:
+            # This is the first message
+            user_class = "user-a"
+        else:
+            user_class = "user-a" if speaker.lower() == "a" or speaker.lower() == transcript_messages[0][0].lower() else "user-b"
+        
+        # Format message with HTML for styling
+        html_message = f"""
+        <div class="chat-message {user_class}">
+            <div class="avatar">
+                {'🧑' if user_class == 'user-a' else '👩‍💼'}
+            </div>
+            <div class="message">
+                <div class="name">{speaker}</div>
+                {message}
+            </div>
+        </div>
+        """
+        
+        # Display the message with custom HTML
+        placeholder.markdown(html_message, unsafe_allow_html=True)
+        
+        # Add to our transcript list
+        transcript_messages.append((speaker, message))
+
+
+def display_results(transcript, score_a, score_b, name_a, name_b, model_name="", 
+                   transcript_container=None, message_placeholders=None, transcript_messages=None):
+    """Display the results of the date simulation."""
+    if model_name:
+        st.success(f"Date simulated with model: {model_name}")
+    
+    # Display ratings if we have them
+    if score_a is not None and score_b is not None:
+        st.subheader("⭐ Ratings")
+        
+        # Use the provided names or default to A/B
+        display_a = name_a if name_a else "A"
+        display_b = name_b if name_b else "B"
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric(f"{display_a}'s score", f"{score_a}/10")
+        with col2:
+            st.metric(f"{display_b}'s score", f"{score_b}/10")
+        with col3:
+            st.metric("Average", f"{(score_a+score_b)/2:.1f}/10")
+
+        st.caption(
+            "Powered by EDSL – agents, scenarios & questions handle the heavy lifting of multi-agent dialogue"
+        )
