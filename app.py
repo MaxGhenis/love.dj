@@ -58,6 +58,8 @@ if ui_inputs["go"]:
                 transcript_messages,
                 speaker,
                 message,
+                ui_inputs["gender_a"],
+                ui_inputs["gender_b"]
             )
 
             # Determine who's speaking next (for typing indicator)
@@ -111,6 +113,8 @@ if ui_inputs["go"]:
             model_name,
             ui_inputs["theme"],
             ui_inputs["service_name"],
+            ui_inputs["gender_a"],
+            ui_inputs["gender_b"]
         )
 
         transcript = []
@@ -168,6 +172,8 @@ if ui_inputs["go"]:
                     transcript_messages,
                     a_entry[0],
                     a_entry[1],
+                    ui_inputs["gender_a"],
+                    ui_inputs["gender_b"]
                 )
                 time.sleep(0.5)
                 # Show a rating calculation message

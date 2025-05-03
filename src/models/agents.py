@@ -41,21 +41,47 @@ def get_opener(model_name, agent, service_name=None):
         model = Model(model_name)
         print(f"Model instance created for opener: {model}")
     
-    return (
-        QuestionFreeText(
-            question_name="opener",
-            question_text=(
-                "You are on a first date. Write a brief opening statement to introduce yourself and ask a question. "
-                "DO NOT include your name at the beginning of your response as it will be added automatically. "
-                "Just write your dialogue directly."
-            ),
+    # Create a scenario with gender information if it exists
+    if "gender" in agent.traits:
+        scenario = Scenario({
+            "persona": agent.traits["persona"],
+            "gender": agent.traits["gender"],
+        })
+        
+        return (
+            QuestionFreeText(
+                question_name="opener",
+                question_text=(
+                    "You are {{ persona }} (using {{ gender }} pronouns) on a first date. "
+                    "Write a brief opening statement to introduce yourself and ask a question. "
+                    "DO NOT include your name at the beginning of your response as it will be added automatically. "
+                    "Just write your dialogue directly."
+                ),
+            )
+            .by(model)
+            .by(agent)
+            .by(scenario)
+            .run()
+            .select("opener")
+            .first()
         )
-        .by(model)
-        .by(agent)
-        .run()
-        .select("opener")
-        .first()
-    )
+    else:
+        # Fallback to original behavior if no gender information
+        return (
+            QuestionFreeText(
+                question_name="opener",
+                question_text=(
+                    "You are on a first date. Write a brief opening statement to introduce yourself and ask a question. "
+                    "DO NOT include your name at the beginning of your response as it will be added automatically. "
+                    "Just write your dialogue directly."
+                ),
+            )
+            .by(model)
+            .by(agent)
+            .run()
+            .select("opener")
+            .first()
+        )
 
 
 def get_response(model_name, agent_self, agent_other, turn, speaker, history_txt, service_name=None):
@@ -67,18 +93,30 @@ def get_response(model_name, agent_self, agent_other, turn, speaker, history_txt
         model = Model(model_name)
         print(f"Model instance created for response: {model}")
     
-    scenario = Scenario(
-        {
-            "chat": history_txt.strip(),
-            "persona": agent_self.traits["persona"],
-            "partner_persona": agent_other.traits["persona"],
-        }
-    )
+    # Create a dictionary of scenario data with required fields
+    scenario_data = {
+        "chat": history_txt.strip(),
+        "persona": agent_self.traits["persona"],
+        "partner_persona": agent_other.traits["persona"],
+    }
+    
+    # Add gender information if available
+    if "gender" in agent_self.traits:
+        scenario_data["gender"] = agent_self.traits["gender"]
+    else:
+        # Default gender if not specified
+        scenario_data["gender"] = "he/him"
+        
+    if "gender" in agent_other.traits:
+        scenario_data["partner_gender"] = agent_other.traits["gender"]
+    
+    # Create the scenario with the data
+    scenario = Scenario(scenario_data)
 
     q = QuestionFreeText(
         question_name=f"turn_{turn}_{speaker}",
         question_text=(
-            "You are {{ persona }} on a first date with {{ partner_persona }}. \n\n"
+            "You are {{ persona }} (using {{ gender }} pronouns) on a first date with {{ partner_persona }}. \n\n"
             "{{ chat }}\n\n"
             "Respond in character (≤ 120 words). DO NOT include your name at the beginning of your response as "
             "it will be added automatically. Just write your dialogue directly."
@@ -116,10 +154,17 @@ def get_rating(model_name, agent, history_txt, service_name=None):
         option_labels={1: "Terrible", 10: "Amazing"},
     )
 
+    # Create scenario data with history
+    scenario_data = {"history": history_txt}
+    
+    # Add gender information if available
+    if "gender" in agent.traits:
+        scenario_data["gender"] = agent.traits["gender"]
+    
     result = (
         rating_question.by(model)
         .by(agent)
-        .by(Scenario({"history": history_txt}))
+        .by(Scenario(scenario_data))
         .run()
         .select("rating")
         .first()

@@ -44,16 +44,34 @@ def setup_ui():
     col1, col2 = st.columns(2)
     with col1:
         name_a = st.text_input("Person A's name", value="")
+        
+        # Gender selection for person A
+        gender_a = st.selectbox(
+            "Person A's gender",
+            options=["he/him", "she/her", "they/them"],
+            index=0,
+            help="This affects pronouns and emoji representation"
+        )
+        
         profile_a = st.text_area(
             "Profile A (who is *this* person?)",
-            height=180,
+            height=150,
             placeholder="e.g. 28 y/o product-manager, loves jazz & climbing…",
         )
     with col2:
         name_b = st.text_input("Person B's name", value="")
+        
+        # Gender selection for person B
+        gender_b = st.selectbox(
+            "Person B's gender",
+            options=["he/him", "she/her", "they/them"],
+            index=1,  # Default to she/her for person B
+            help="This affects pronouns and emoji representation"
+        )
+        
         profile_b = st.text_area(
             "Profile B (and their date?)",
-            height=180,
+            height=150,
             placeholder="e.g. 30 y/o PhD student, avid reader, vegan…",
         )
 
@@ -107,8 +125,10 @@ def setup_ui():
     return {
         "name_a": name_a,
         "profile_a": profile_a,
+        "gender_a": gender_a,
         "name_b": name_b,
         "profile_b": profile_b,
+        "gender_b": gender_b,
         "rounds": rounds,
         "model_name": model_name,
         "service_name": None if service_name == "None (auto)" else service_name,
@@ -200,7 +220,7 @@ def create_real_time_transcript_container():
     return transcript_container, message_placeholders, transcript_messages
 
 
-def update_transcript(transcript_container, message_placeholders, transcript_messages, speaker, message):
+def update_transcript(transcript_container, message_placeholders, transcript_messages, speaker, message, gender_a="he/him", gender_b="she/her"):
     """Add a new message to the transcript in real-time.
     
     Args:
@@ -209,6 +229,8 @@ def update_transcript(transcript_container, message_placeholders, transcript_mes
         transcript_messages: List of all transcript messages
         speaker: The name of the speaker
         message: The message content
+        gender_a: Gender/pronouns of person A
+        gender_b: Gender/pronouns of person B
     """
     with transcript_container:
         # Create a new placeholder for this message if needed
@@ -225,11 +247,21 @@ def update_transcript(transcript_container, message_placeholders, transcript_mes
         else:
             user_class = "user-a" if speaker.lower() == "a" or speaker.lower() == transcript_messages[0][0].lower() else "user-b"
         
+        # Get appropriate emoji based on gender
+        gender = gender_a if user_class == "user-a" else gender_b
+        
+        if gender == "he/him":
+            emoji = "👨" 
+        elif gender == "she/her":
+            emoji = "👩"
+        else:  # they/them
+            emoji = "🧑"
+        
         # Format message with HTML for styling
         html_message = f"""
         <div class="chat-message {user_class}">
             <div class="avatar">
-                {'🧑' if user_class == 'user-a' else '👩‍💼'}
+                {emoji}
             </div>
             <div class="message">
                 <div class="name">{speaker}</div>

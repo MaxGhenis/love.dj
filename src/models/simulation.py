@@ -7,7 +7,7 @@ from src.models.agents import (
     DEFAULT_PROFILES,
 )
 
-def initialize_date(profile_a, profile_b, name_a, name_b, model_name, theme=None, service_name=None):
+def initialize_date(profile_a, profile_b, name_a, name_b, model_name, theme=None, service_name=None, gender_a="he/him", gender_b="she/her"):
     """Initialize a date simulation and create the agents.
     
     Args:
@@ -18,6 +18,8 @@ def initialize_date(profile_a, profile_b, name_a, name_b, model_name, theme=None
         model_name: Name of the LLM to use
         theme: Optional theme/location for the date
         service_name: Optional service provider name
+        gender_a: Person A's gender/pronouns
+        gender_b: Person B's gender/pronouns
         
     Returns:
         tuple: (agent_a, agent_b, display_a, display_b)
@@ -26,9 +28,17 @@ def initialize_date(profile_a, profile_b, name_a, name_b, model_name, theme=None
     display_a = name_a if name_a else "A"
     display_b = name_b if name_b else "B"
     
+    # Enhance profiles with gender/pronoun information
+    profile_a_with_gender = f"{profile_a} (Uses {gender_a} pronouns)"
+    profile_b_with_gender = f"{profile_b} (Uses {gender_b} pronouns)"
+    
     # Create agents
-    agent_a = create_agent(display_a, profile_a, DEFAULT_PROFILES["default_a"])
-    agent_b = create_agent(display_b, profile_b, DEFAULT_PROFILES["default_b"])
+    agent_a = create_agent(display_a, profile_a_with_gender, DEFAULT_PROFILES["default_a"])
+    agent_b = create_agent(display_b, profile_b_with_gender, DEFAULT_PROFILES["default_b"])
+    
+    # Add gender information to agent traits for use in prompts
+    agent_a.traits["gender"] = gender_a
+    agent_b.traits["gender"] = gender_b
     
     # Keep track of the model being used
     print(f"Using model in simulation: {model_name}")
