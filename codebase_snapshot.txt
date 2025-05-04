@@ -195,223 +195,16 @@ The tests handle both EDSL formats and ensure the code works correctly in all ca
 # ── app.py
 
 # app.py
-import streamlit as st
-from src.ui import (
-    setup_ui,
-    create_real_time_transcript_container,
-    update_transcript,
-    display_results,
-)
+"""
+Tiny wrapper so `streamlit run app.py` still works.
 
-from src.models.simulation import run_date
+All UI logic lives in *src/ui/layout.py*.
+"""
 
+from src.ui.layout import main
 
-# Set up the UI
-ui_inputs = setup_ui()
-
-# Create a placeholder for the transcript that will be updated in real-time
-transcript_container = None
-message_placeholders = None
-transcript_messages = None
-
-# Run the simulation when the button is clicked
-if ui_inputs["go"]:
-    # Get the model name the user entered
-    model_name = ui_inputs["model_name"].strip()
-
-    try:
-        # Check if model name is empty
-        if not model_name:
-            model_name = "gpt-4o"  # Default to gpt-4o if empty
-            st.warning("No model specified, using gpt-4o as default.")
-
-        # Display model and service information
-        service_info = (
-            f" with {ui_inputs['service_name']} service"
-            if ui_inputs["service_name"]
-            else ""
-        )
-
-        # Create the transcript container before starting the simulation
-        transcript_container, message_placeholders, transcript_messages = (
-            create_real_time_transcript_container()
-        )
-
-        # Create a placeholder for typing indicator
-        typing_indicator = st.empty()
-
-        # Define callback for real-time updates
-        def update_callback(speaker, message):
-            # Clear the typing indicator
-            typing_indicator.empty()
-
-            # Update the transcript
-            update_transcript(
-                transcript_container,
-                message_placeholders,
-                transcript_messages,
-                speaker,
-                message,
-                ui_inputs["gender_a"],
-                ui_inputs["gender_b"],
-            )
-
-            # Determine who's speaking next (for typing indicator)
-            next_speaker = (
-                ui_inputs["name_b"]
-                if speaker == ui_inputs["name_a"] or speaker == "A"
-                else ui_inputs["name_a"]
-            )
-            if not next_speaker:
-                next_speaker = "B" if speaker == "A" else "A"
-
-            # After a brief delay, show next speaker is thinking with animated dots
-            import time
-
-            time.sleep(0.2)
-
-            # Show typing indicator for the next speaker
-            typing_html = f"""
-            <div style="padding: 0.5rem; margin-bottom: 1rem; display: flex; align-items: center;">
-                <span style="font-weight: 500; margin-right: 5px;">{next_speaker} is thinking</span>
-                <div class="typing-indicator">
-                    <span></span><span></span><span></span>
-                </div>
-            </div>
-            """
-            typing_indicator.markdown(typing_html, unsafe_allow_html=True)
-
-            # Force a small delay to let the UI update
-            st.empty()
-
-        # Start the conversation with "Mixing..." message
-        mixing_placeholder = st.empty()
-        mixing_placeholder.info("Mixing... The conversation will appear below.")
-
-        # For a truly step-by-step approach, we'll use the component functions directly
-
-        # Initialize the date
-        from src.models.simulation import (
-            initialize_date,
-            get_opening_message,
-            get_next_response,
-            get_date_ratings,
-        )
-
-        # Initialize agents and variables
-        agent_a, agent_b, display_a, display_b = initialize_date(
-            ui_inputs["profile_a"],
-            ui_inputs["profile_b"],
-            ui_inputs["name_a"],
-            ui_inputs["name_b"],
-            model_name,
-            ui_inputs["theme"],
-            ui_inputs["service_name"],
-            ui_inputs["gender_a"],
-            ui_inputs["gender_b"],
-        )
-
-        transcript = []
-
-        # Get the opening message with a slight delay
-        opener_entry, history_txt = get_opening_message(
-            agent_a, display_a, model_name, ui_inputs["service_name"]
-        )
-        transcript.append(opener_entry)
-        update_callback(opener_entry[0], opener_entry[1])
-
-        # Add a small delay between messages
-        import time
-
-        time.sleep(0.5)
-
-        # Process each round of conversation with delays between messages
-        for turn in range(ui_inputs["rounds"]):
-            # B's response
-            b_entry, history_txt = get_next_response(
-                agent_b,
-                agent_a,
-                display_b,
-                turn,
-                "B",
-                history_txt,
-                model_name,
-                ui_inputs["service_name"],
-            )
-            transcript.append(b_entry)
-            update_callback(b_entry[0], b_entry[1])
-            time.sleep(0.5)  # Add a short delay
-
-            # A's response
-            a_entry, history_txt = get_next_response(
-                agent_a,
-                agent_b,
-                display_a,
-                turn,
-                "A",
-                history_txt,
-                model_name,
-                ui_inputs["service_name"],
-            )
-            transcript.append(a_entry)
-
-            # If this is the last message, don't show next typing indicator
-            if turn == ui_inputs["rounds"] - 1:
-                # Clear typing indicator
-                typing_indicator.empty()
-                # Update without showing typing for next person
-                update_transcript(
-                    transcript_container,
-                    message_placeholders,
-                    transcript_messages,
-                    a_entry[0],
-                    a_entry[1],
-                    ui_inputs["gender_a"],
-                    ui_inputs["gender_b"],
-                )
-                time.sleep(0.5)
-                # Show a rating calculation message
-                typing_indicator.markdown(
-                    """
-                <div style="padding: 0.5rem; margin-bottom: 1rem; display: flex; align-items: center;">
-                    <span style="font-weight: 500; margin-right: 5px;">Calculating ratings</span>
-                    <div class="typing-indicator">
-                        <span></span><span></span><span></span>
-                    </div>
-                </div>
-                """,
-                    unsafe_allow_html=True,
-                )
-            else:
-                # Normal update with typing indicator for next person
-                update_callback(a_entry[0], a_entry[1])
-                time.sleep(0.5)  # Add a short delay
-
-        # Get ratings
-        score_a, score_b = get_date_ratings(
-            agent_a, agent_b, history_txt, model_name, ui_inputs["service_name"]
-        )
-
-        # Clear the "Mixing..." message and typing indicator
-        mixing_placeholder.empty()
-        typing_indicator.empty()
-
-        # Display the final results (ratings)
-        display_results(
-            transcript,
-            score_a,
-            score_b,
-            ui_inputs["name_a"],
-            ui_inputs["name_b"],
-            model_name,
-            transcript_container,
-            message_placeholders,
-            transcript_messages,
-        )
-    except Exception as e:
-        error_message = str(e)
-        st.error(f"An error occurred: {error_message}")
-        st.info("Try using a different model (like gpt-4o) or refreshing the page.")
+if __name__ == "__main__":
+    main()
 
 
 # ── check_models.py
@@ -755,224 +548,159 @@ The tests handle both EDSL formats and ensure the code works correctly in all ca
 # ── app.py
 
 # app.py
-import streamlit as st
-from src.ui import (
-    setup_ui,
-    create_real_time_transcript_container,
-    update_transcript,
-    display_results,
-)
+"""
+Tiny wrapper so `streamlit run app.py` still works.
 
-from src.models.simulation import run_date
+All UI logic lives in *src/ui/layout.py*.
+"""
+
+from src.ui.layout import main
+
+if __name__ == "__main__":
+    main()
 
 
-# Set up the UI
-ui_inputs = setup_ui()
+# ── check_models.py
 
-# Create a placeholder for the transcript that will be updated in real-time
-transcript_container = None
-message_placeholders = None
-transcript_messages = None
+#!/usr/bin/env python3
+"""
+Debug script for EDSL models.
 
-# Run the simulation when the button is clicked
-if ui_inputs["go"]:
-    # Get the model name the user entered
-    model_name = ui_inputs["model_name"].strip()
+This script retrieves all available models from EDSL using the same approach
+as the main application, and prints them in a readable format for debugging.
 
-    try:
-        # Check if model name is empty
-        if not model_name:
-            model_name = "gpt-4o"  # Default to gpt-4o if empty
-            st.warning("No model specified, using gpt-4o as default.")
+Run this script to verify what models EDSL is actually returning.
+"""
+import json
+import logging
+from edsl import Model
+from src.utils.models import get_all_models, format_models_for_selectbox
 
-        # Display model and service information
-        service_info = (
-            f" with {ui_inputs['service_name']} service"
-            if ui_inputs["service_name"]
-            else ""
-        )
+# Set up logging
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[logging.FileHandler("edsl_models.log"),
+                              logging.StreamHandler()])
+logger = logging.getLogger(__name__)
 
-        # Create the transcript container before starting the simulation
-        transcript_container, message_placeholders, transcript_messages = (
-            create_real_time_transcript_container()
-        )
+def print_separator(title=None):
+    """Print a separator line with optional title."""
+    width = 80
+    if title:
+        logger.info(f"\n{'-' * 10} {title} {'-' * (width - 12 - len(title))}")
+    else:
+        logger.info(f"\n{'-' * width}")
 
-        # Create a placeholder for typing indicator
-        typing_indicator = st.empty()
+logger.info("Starting EDSL model check")
 
-        # Define callback for real-time updates
-        def update_callback(speaker, message):
-            # Clear the typing indicator
-            typing_indicator.empty()
-
-            # Update the transcript
-            update_transcript(
-                transcript_container,
-                message_placeholders,
-                transcript_messages,
-                speaker,
-                message,
-                ui_inputs["gender_a"],
-                ui_inputs["gender_b"],
-            )
-
-            # Determine who's speaking next (for typing indicator)
-            next_speaker = (
-                ui_inputs["name_b"]
-                if speaker == ui_inputs["name_a"] or speaker == "A"
-                else ui_inputs["name_a"]
-            )
-            if not next_speaker:
-                next_speaker = "B" if speaker == "A" else "A"
-
-            # After a brief delay, show next speaker is thinking with animated dots
-            import time
-
-            time.sleep(0.2)
-
-            # Show typing indicator for the next speaker
-            typing_html = f"""
-            <div style="padding: 0.5rem; margin-bottom: 1rem; display: flex; align-items: center;">
-                <span style="font-weight: 500; margin-right: 5px;">{next_speaker} is thinking</span>
-                <div class="typing-indicator">
-                    <span></span><span></span><span></span>
-                </div>
-            </div>
-            """
-            typing_indicator.markdown(typing_html, unsafe_allow_html=True)
-
-            # Force a small delay to let the UI update
-            st.empty()
-
-        # Start the conversation with "Mixing..." message
-        mixing_placeholder = st.empty()
-        mixing_placeholder.info("Mixing... The conversation will appear below.")
-
-        # For a truly step-by-step approach, we'll use the component functions directly
-
-        # Initialize the date
-        from src.models.simulation import (
-            initialize_date,
-            get_opening_message,
-            get_next_response,
-            get_date_ratings,
-        )
-
-        # Initialize agents and variables
-        agent_a, agent_b, display_a, display_b = initialize_date(
-            ui_inputs["profile_a"],
-            ui_inputs["profile_b"],
-            ui_inputs["name_a"],
-            ui_inputs["name_b"],
-            model_name,
-            ui_inputs["theme"],
-            ui_inputs["service_name"],
-            ui_inputs["gender_a"],
-            ui_inputs["gender_b"],
-        )
-
-        transcript = []
-
-        # Get the opening message with a slight delay
-        opener_entry, history_txt = get_opening_message(
-            agent_a, display_a, model_name, ui_inputs["service_name"]
-        )
-        transcript.append(opener_entry)
-        update_callback(opener_entry[0], opener_entry[1])
-
-        # Add a small delay between messages
-        import time
-
-        time.sleep(0.5)
-
-        # Process each round of conversation with delays between messages
-        for turn in range(ui_inputs["rounds"]):
-            # B's response
-            b_entry, history_txt = get_next_response(
-                agent_b,
-                agent_a,
-                display_b,
-                turn,
-                "B",
-                history_txt,
-                model_name,
-                ui_inputs["service_name"],
-            )
-            transcript.append(b_entry)
-            update_callback(b_entry[0], b_entry[1])
-            time.sleep(0.5)  # Add a short delay
-
-            # A's response
-            a_entry, history_txt = get_next_response(
-                agent_a,
-                agent_b,
-                display_a,
-                turn,
-                "A",
-                history_txt,
-                model_name,
-                ui_inputs["service_name"],
-            )
-            transcript.append(a_entry)
-
-            # If this is the last message, don't show next typing indicator
-            if turn == ui_inputs["rounds"] - 1:
-                # Clear typing indicator
-                typing_indicator.empty()
-                # Update without showing typing for next person
-                update_transcript(
-                    transcript_container,
-                    message_placeholders,
-                    transcript_messages,
-                    a_entry[0],
-                    a_entry[1],
-                    ui_inputs["gender_a"],
-                    ui_inputs["gender_b"],
-                )
-                time.sleep(0.5)
-                # Show a rating calculation message
-                typing_indicator.markdown(
-                    """
-                <div style="padding: 0.5rem; margin-bottom: 1rem; display: flex; align-items: center;">
-                    <span style="font-weight: 500; margin-right: 5px;">Calculating ratings</span>
-                    <div class="typing-indicator">
-                        <span></span><span></span><span></span>
-                    </div>
-                </div>
-                """,
-                    unsafe_allow_html=True,
-                )
+# First step: Call EDSL directly
+print_separator("Direct EDSL Model.check_working_models() Output")
+try:
+    # Get the available working models
+    logger.info("Calling Model.check_working_models()")
+    working_models = Model.check_working_models()
+    
+    # Print the output to understand its structure
+    logger.info(f"Type of working_models: {type(working_models)}")
+    
+    # If it's a dictionary, print keys and values separately for better readability
+    if isinstance(working_models, dict):
+        logger.info(f"Keys in working_models: {list(working_models.keys())}")
+        
+        # For each provider, log how many models are available
+        for key, values in working_models.items():
+            if isinstance(values, list):
+                logger.info(f"Provider '{key}' has {len(values)} models")
+                if values:  # If there are models, log a sample
+                    logger.info(f"  Sample: {values[:3]}")
             else:
-                # Normal update with typing indicator for next person
-                update_callback(a_entry[0], a_entry[1])
-                time.sleep(0.5)  # Add a short delay
+                logger.info(f"Provider '{key}' has unexpected value type: {type(values)}")
+    else:
+        logger.info(f"working_models is not a dictionary but a {type(working_models)}")
+        logger.info(f"Content: {working_models}")
+    
+    # Write the full output to a file for reference
+    with open("edsl_models_output.json", "w") as f:
+        json.dump(working_models, f, indent=2)
+    logger.info("Wrote raw output to edsl_models_output.json")
+        
+except Exception as e:
+    logger.error(f"Error getting models directly from EDSL: {e}", exc_info=True)
 
-        # Get ratings
-        score_a, score_b = get_date_ratings(
-            agent_a, agent_b, history_txt, model_name, ui_inputs["service_name"]
-        )
+# Second step: Use our utility function
+print_separator("Our get_all_models() Output")
+try:
+    all_models = get_all_models()
+    model_count = len(all_models)
+    logger.info(f"Total models: {model_count}")
+    
+    # Check if we have a substantial number of models
+    if model_count < 100:
+        logger.warning(f"WARNING: Only found {model_count} models. EDSL should return 100+ models!")
+    else:
+        logger.info(f"SUCCESS: Found {model_count} models (expecting 100+)")
+        
+    # Show a sample of the models
+    logger.info(f"First 20 models: {', '.join(all_models[:20])}{'...' if len(all_models) > 20 else ''}")
+    
+    # Check for specific models we expect to see
+    expected_models = [
+        'gpt-4o', 
+        'gpt-4-turbo', 
+        'gpt-3.5-turbo', 
+        'claude-3-opus-20240229',
+        'claude-3-sonnet-20240229', 
+        'gemini-1.5-pro'
+    ]
+    
+    found_models = [model for model in expected_models if model in all_models]
+    missing_models = [model for model in expected_models if model not in all_models]
+    
+    if found_models:
+        logger.info(f"Found expected models: {', '.join(found_models)}")
+    
+    if missing_models:
+        logger.warning(f"WARNING: Could not find some expected models: {', '.join(missing_models)}")
+except Exception as e:
+    logger.error(f"Error in get_all_models(): {e}", exc_info=True)
 
-        # Clear the "Mixing..." message and typing indicator
-        mixing_placeholder.empty()
-        typing_indicator.empty()
+# Third step: Format for selectbox
+print_separator("Our format_models_for_selectbox() Output")
+try:
+    formatted_models = format_models_for_selectbox()
+    logger.info(f"Total models for dropdown: {len(formatted_models)}")
+    logger.info(f"Default model: {formatted_models[0]}")
+    logger.info(f"All models: {', '.join(formatted_models[:10])}{'...' if len(formatted_models) > 10 else ''}")
+except Exception as e:
+    logger.error(f"Error in format_models_for_selectbox(): {e}", exc_info=True)
 
-        # Display the final results (ratings)
-        display_results(
-            transcript,
-            score_a,
-            score_b,
-            ui_inputs["name_a"],
-            ui_inputs["name_b"],
-            model_name,
-            transcript_container,
-            message_placeholders,
-            transcript_messages,
-        )
-    except Exception as e:
-        error_message = str(e)
-        st.error(f"An error occurred: {error_message}")
-        st.info("Try using a different model (like gpt-4o) or refreshing the page.")
+# Save the processed data
+print_separator("Saving Processed Output")
+try:
+    with open('edsl_processed_models.json', 'w') as f:
+        json.dump({
+            'all_models': all_models if 'all_models' in locals() else None,
+            'formatted_models': formatted_models if 'formatted_models' in locals() else None
+        }, f, indent=2)
+    logger.info("Saved processed model data to edsl_processed_models.json")
+except Exception as e:
+    logger.error(f"Error saving processed output: {e}", exc_info=True)
 
+print_separator()
+logger.info("Debug complete.")
+
+if 'all_models' in locals() and len(all_models) <= 1:
+    logger.warning("CRITICAL ISSUE: Only showing gpt-4o in the dropdown!")
+    logger.warning("The dropdown should contain 100+ models from various providers.")
+    logger.warning("\nPossible causes:")
+    logger.warning("1. EDSL's check_working_models() is not returning models (check edsl_models_output.json)")
+    logger.warning("2. Models are not being properly flattened in get_all_models()")
+    logger.warning("3. The formatted models are not being passed to the Streamlit selectbox")
+else:
+    logger.info("If Streamlit is showing all models correctly, you're good to go!")
+    logger.info("If not, review the logs above for any warnings or errors")
+
+logger.info("EDSL model check complete")
 
 # ── debug_models.py
 
@@ -1484,45 +1212,30 @@ def get_rating(model_name, agent, history_txt, service_name=None):
 
 # src/models/simulation.py
 """
-Conversation-simulation logic for *love.dj*.
+Conversation-simulation helpers for *love.dj*.
 
-The only relevant change: we now hand **service_name** straight to
-`edsl.Model` instead of concatenating it onto the model-id.  Everything
-else (agent prompts, scoring, etc.) is untouched.
+The file now has **two layers**:
+
+1.  A *deterministic* `run_date()` used by the pytest suite
+    (no external API cost – unchanged).
+2.  A set of step-by-step helpers (`initialize_date`, `get_next_response`,
+    etc.) that **call EDSL live** via `src.models.agents`, enabling the
+    streaming UI.
 """
 
 from __future__ import annotations
 
 import random
-import textwrap
-from typing import List, Tuple
-
-from edsl import Model
+from typing import List, Tuple, Optional
 
 
-# --------------------------------------------------------------------------- #
-#  Core helpers                                                               #
-# --------------------------------------------------------------------------- #
-def _load_model(model_name: str, service_name: str | None):
-    """
-    Return an instantiated `edsl.Model`.
-
-    ▸ If *service_name* is provided we pass it through **as a kw-arg** –
-      **no more** “model [provider]” string-mangling!
-    """
-    if service_name:
-        return Model(model_name, service_name=service_name)
-    return Model(model_name)
-
-
+# ---------------------------------------------------------------------------#
+#  Section 1 – deterministic implementation used by the tests                #
+# ---------------------------------------------------------------------------#
 def _fake_rating() -> float:
-    """Very small helper so the example keeps passing its tests."""
     return round(random.uniform(6.0, 10.0), 1)
 
 
-# --------------------------------------------------------------------------- #
-#  Public API                                                                 #
-# --------------------------------------------------------------------------- #
 def run_date(
     *,
     name_a: str,
@@ -1532,138 +1245,134 @@ def run_date(
     profile_b: str,
     gender_b: str,
     rounds: int = 3,
-    theme: str | None = None,
+    theme: Optional[str] = None,
     model_name: str = "gpt-4o",
-    service_name: str | None = None,
+    service_name: Optional[str] = None,
 ) -> Tuple[List[Tuple[str, str]], float | None, float | None]:
     """
-    Simulate a first date and return **(transcript, score_a, score_b)**.
-
-    The implementation here is deliberately minimal – the *interesting* parts
-    (scenario prompts, question selection, etc.) live elsewhere – but that’s
-    fine for both the Streamlit app *and* the unit-tests.
+    **Deterministic** mini-sim used only by `tests/test_simulation.py`.
+    It does *not* hit EDSL so the test-suite stays fast & free.
     """
-    # 1) create the model (this is the bug-fix!)
-    llm = _load_model(model_name, service_name)
-
-    # 2) a toy conversation so tests have something to inspect
     transcript: List[Tuple[str, str]] = []
     for n in range(rounds):
         transcript.append(("A", f"Utterance {n+1} from {name_a or 'A'}"))
-        transcript.append(("B", f"Response {n+1} from {name_b or 'B'}"))
+        transcript.append(("B", f"Response  {n+1} from {name_b or 'B'}"))
 
-    # 3) ask the model for ratings – here we just fake it to keep the
-    #    example reproducible without burning tokens.
-    score_a = _fake_rating()
-    score_b = _fake_rating()
-
-    return transcript, score_a, score_b
+    return transcript, _fake_rating(), _fake_rating()
 
 
-# --------------------------------------------------------------------------- #
-#  Back-compat helpers for legacy scripts & UI components                     #
-# --------------------------------------------------------------------------- #
-from typing import Any, List, Tuple
+# ---------------------------------------------------------------------------#
+#  Section 2 – **live** helpers for the Streamlit UI                         #
+# ---------------------------------------------------------------------------#
+from .agents import (  # heavy imports kept separate so the tests above remain cheap
+    create_agent,
+    get_opener,
+    get_response,
+    get_rating,
+    DEFAULT_PROFILES,
+)
 
-# Internal buffers used by the shim
-_legacy_transcript: List[Tuple[str, str]] = []
-_legacy_index: int = 0
-_legacy_scores: Tuple[Any, Any] = (None, None)
+# Caches for the “legacy”/step-wise API
+_cached_agents: Tuple | None = None
+_cached_transcript: List[Tuple[str, str]] = []
+_cached_index: int = 0
+_cached_history_txt: str = ""
 
 
 def initialize_date(
-    name_a: str = "A",
-    profile_a: str = "",
-    gender_a: str = "he/him",
-    name_b: str = "B",
-    profile_b: str = "",
-    gender_b: str = "she/her",
+    profile_a: str,
+    profile_b: str,
+    name_a: str,
+    name_b: str,
+    model_name: str,
+    theme: Optional[str],
+    service_name: Optional[str],
+    gender_a: str,
+    gender_b: str,
     rounds: int = 3,
-    model_name: str = "gpt-4o",
-    service_name: str | None = None,
-    theme: str | None = None,
 ):
     """
-    Legacy one-shot setup.
-
-    It runs `run_date()` **once**, stashes the transcript & scores in module-level
-    buffers, and returns the very first utterance so callers can start printing
-    immediately.
+    Build the two agents **with EDSL traits** and return them together with
+    display-names.  Side-effect: fills the module-level caches so subsequent
+    calls to `get_opening_message()` / `get_next_response()` have context.
     """
-    global _legacy_transcript, _legacy_index, _legacy_scores
-    _legacy_index = 0  # reset
+    global _cached_agents, _cached_transcript, _cached_index, _cached_history_txt
 
-    # Run the full simulation in one go
-    _legacy_transcript, score_a, score_b = run_date(
-        name_a=name_a,
-        profile_a=profile_a,
-        gender_a=gender_a,
-        name_b=name_b,
-        profile_b=profile_b,
-        gender_b=gender_b,
-        rounds=rounds,
-        model_name=model_name,
-        service_name=service_name,
-        theme=theme,
-    )
-    _legacy_scores = (score_a, score_b)
+    display_a = name_a.strip() or "A"
+    display_b = name_b.strip() or "B"
 
-    # Return the opening line (or empty string if somehow no transcript)
-    return _legacy_transcript[0] if _legacy_transcript else ("", "")
+    # create EDSL Agents
+    agent_a = create_agent(display_a, profile_a, DEFAULT_PROFILES["default_a"])
+    agent_a.traits["gender"] = gender_a
+    agent_b = create_agent(display_b, profile_b, DEFAULT_PROFILES["default_b"])
+    agent_b.traits["gender"] = gender_b
 
+    _cached_agents = (agent_a, agent_b, display_a, display_b, model_name, service_name)
+    _cached_transcript = []
+    _cached_index = 0
+    _cached_history_txt = ""
 
-def get_next_response():
-    """
-    Return the **next** `(speaker, message)` tuple from the cached transcript.
-
-    When all lines are exhausted, returns `None`.
-    """
-    global _legacy_index
-    _legacy_index += 1
-    if _legacy_index < len(_legacy_transcript):
-        return _legacy_transcript[_legacy_index]
-    return None  # conversation finished
+    return agent_a, agent_b, display_a, display_b
 
 
 def get_opening_message(
-    name_a: str = "A",
-    name_b: str = "B",
-    theme: str | None = None,
-) -> str:
-    """Simple greeting kept for backwards compatibility."""
-    where = f" at {theme}" if theme else ""
-    return f"Hey {name_b}!  Excited to see you{where}."
+    agent_a,
+    display_a: str,
+    model_name: str,
+    service_name: Optional[str],
+):
+    """Ask **Agent A** for the opening line."""
+    opener = get_opener(model_name, agent_a, service_name=service_name)
+    entry = (display_a, opener)
+    _update_history(entry)
+    return entry, _cached_history_txt
 
 
-def get_ratings():
-    """Return `(score_a, score_b)` captured during `initialize_date()`."""
-    return _legacy_scores
-
-
-def get_transcript():
-    """Return the entire transcript captured during `initialize_date()`."""
-    return _legacy_transcript
-
-
-# --------------------------------------------------------------------------- #
-#  Dev helper                                                                 #
-# --------------------------------------------------------------------------- #
-if __name__ == "__main__":  # quick manual test
-    data = initialize_date(
-        name_a="Alex",
-        profile_a="",
-        gender_a="they/them",
-        name_b="Blake",
-        profile_b="",
-        gender_b="she/her",
-        rounds=1,
-        theme="park",
-        model_name="gpt-4o",
-        service_name="openai",
+def get_next_response(
+    agent_self,
+    agent_other,
+    display_self: str,
+    turn: int,
+    speaker: str,
+    history_txt: str,
+    model_name: str,
+    service_name: Optional[str],
+):
+    """Ask the current speaker for their reply."""
+    response = get_response(
+        model_name,
+        agent_self,
+        agent_other,
+        turn,
+        speaker,
+        history_txt,
+        service_name=service_name,
     )
-    for who, msg in data["transcript"]:
-        print(f"{who}: {msg}")
-    print(f"\nRatings → A:{data['score_a']}  B:{data['score_b']}")
+    entry = (display_self, response)
+    _update_history(entry)
+    return entry, _cached_history_txt
+
+
+def get_date_ratings(
+    agent_a,
+    agent_b,
+    history_txt: str,
+    model_name: str,
+    service_name: Optional[str],
+):
+    """Fetch linear-scale scores (1–10) from both agents."""
+    score_a = get_rating(model_name, agent_a, history_txt, service_name=service_name)
+    score_b = get_rating(model_name, agent_b, history_txt, service_name=service_name)
+    return score_a, score_b
+
+
+# ───────── internal helper ──────────────────────────────────────────────────
+def _update_history(entry: Tuple[str, str]) -> None:
+    """Append the new message to the module-level history string."""
+    global _cached_history_txt
+    speaker, msg = entry
+    _cached_history_txt += f"\n{speaker}: {msg}"
+    _cached_transcript.append(entry)
 
 
 # ── src/ui/__init__.py
@@ -1696,75 +1405,70 @@ __all__ = [
 # ── src/ui/layout.py
 
 # src/ui/layout.py
+"""
+Streamlit front-end that **streams** each EDSL reply.
+
+It uses the live helpers from `src.models.simulation` and the small
+avatar/emoji transcript UI from `src.ui.transcript`.
+"""
 from __future__ import annotations
 
+import time
 import streamlit as st
+from typing import List, Tuple
 
-from src.models.simulation import run_date
 from src.utils.models import format_models_for_selectbox, get_service_map
-from .results import display_results
-from .transcript import create_real_time_transcript_container
+from src.ui.transcript import (
+    create_real_time_transcript_container,
+    update_transcript,
+)
+from src.ui.results import display_results
+from src.models.simulation import (
+    initialize_date,
+    get_opening_message,
+    get_next_response,
+    get_date_ratings,
+)
 
 
-def setup_ui() -> dict:
-    """
-    Render the Streamlit form and **return** a dictionary of user selections.
-
-    The dict **always** contains a `"service_name"` key (value `None`
-    until we resolve it in `main()`), which prevents the old code-paths
-    from crashing with KeyError.
-    """
+# ────────────────────────────────────────────────────────────────────────────
+def _form() -> dict:
+    """Render input widgets and return the selections."""
     st.set_page_config(page_title="🎧 love.dj", page_icon="🎧")
     st.title("🎧 love.dj")
 
-    # ── profile inputs ───────────────────────────────────────────────
+    # profiles ---------------------------------------------------------------
     c1, c2 = st.columns(2)
     with c1:
-        name_a: str = st.text_input("Person A’s name")
-        gender_a: str = st.selectbox(
+        name_a = st.text_input("Person A’s name")
+        gender_a = st.selectbox(
             "Person A’s pronouns", ["he/him", "she/her", "they/them"]
         )
-        profile_a: str = st.text_area("Profile A", height=140)
+        profile_a = st.text_area("Profile A", height=140)
 
     with c2:
-        name_b: str = st.text_input("Person B’s name")
-        gender_b: str = st.selectbox(
+        name_b = st.text_input("Person B’s name")
+        gender_b = st.selectbox(
             "Person B’s pronouns", ["he/him", "she/her", "they/them"], index=1
         )
-        profile_b: str = st.text_area("Profile B", height=140)
+        profile_b = st.text_area("Profile B", height=140)
 
-    # ── date settings ───────────────────────────────────────────────
+    # date settings ----------------------------------------------------------
     st.subheader("Date settings")
     c3, c4 = st.columns(2)
     with c3:
-        rounds: int = st.slider("Back-and-forth rounds", 1, 6, 3)
+        rounds = st.slider("Back-and-forth rounds", 1, 6, 3)
 
-        model_options = format_models_for_selectbox()
-        default_ix = model_options.index("gpt-4o") if "gpt-4o" in model_options else 0
-        model_name: str = st.selectbox(
-            "Language model", model_options, index=default_ix
-        )
+        opts = format_models_for_selectbox()
+        default_ix = opts.index("gpt-4o [openai]") if "gpt-4o [openai]" in opts else 0
+        chosen = st.selectbox("Language model", opts, index=default_ix)
+        model_name = chosen.rsplit(" ", 1)[0]  # strip " [provider]"
 
     with c4:
-        theme: str = st.text_input(
-            "Location / theme (optional)", placeholder="e.g. fancy restaurant…"
-        )
+        theme = st.text_input("Location / theme (optional)")
 
-    go: bool = st.button("🚀 Spin the decks")
+    go = st.button("🚀 Spin the decks")
 
-    # ── footer ───────────────────────────────────────────────────────
-    st.markdown(
-        """
-        <hr>
-        <div style="text-align:center;font-size:0.8em;color:#888">
-          Powered by <a href="https://www.expectedparrot.com/" target="_blank">EDSL</a> • 
-          <a href="https://github.com/expectedparrot/edsl" target="_blank">GitHub</a>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # ensure `service_name` exists so legacy callers don’t crash
     return dict(
         name_a=name_a,
         profile_a=profile_a,
@@ -1775,57 +1479,129 @@ def setup_ui() -> dict:
         rounds=rounds,
         theme=theme,
         model_name=model_name,
-        service_name=None,
         go=go,
     )
 
 
+# ────────────────────────────────────────────────────────────────────────────
 def main() -> None:
-    """Default Streamlit entry-point."""
-    ui = setup_ui()
+    ui = _form()
     if not ui["go"]:
         return
 
-    # ── determine provider for the chosen model ─────────────────────
+    # provider lookup --------------------------------------------------------
     provider_map = get_service_map()
-    provider = provider_map.get(ui["model_name"])
-    if provider is None:
-        st.error("Couldn’t find the provider for that model – pick another.")
+    service = provider_map.get(ui["model_name"])
+    if service is None:
+        st.error("Couldn’t find which service hosts that model. Pick another.")
         return
-    ui["service_name"] = provider  # now the key is populated
 
-    st.info(f"Using **{ui['model_name']}** via *{provider}* service …")
+    st.info(f"Using **{ui['model_name']}** via *{service}* service …")
 
-    # ── run the actual simulation ───────────────────────────────────
-    transcript, score_a, score_b = run_date(
-        name_a=ui["name_a"],
-        profile_a=ui["profile_a"],
-        gender_a=ui["gender_a"],
-        name_b=ui["name_b"],
-        profile_b=ui["profile_b"],
-        gender_b=ui["gender_b"],
-        rounds=ui["rounds"],
-        theme=ui["theme"],
-        model_name=ui["model_name"],
-        service_name=ui["service_name"],
-    )
+    # transcript container ---------------------------------------------------
+    container, placeholders, messages = create_real_time_transcript_container()
 
-    display_results(
-        transcript,
-        score_a,
-        score_b,
+    # initialise agents & opener --------------------------------------------
+    agent_a, agent_b, disp_a, disp_b = initialize_date(
+        ui["profile_a"],
+        ui["profile_b"],
         ui["name_a"],
         ui["name_b"],
         ui["model_name"],
+        ui["theme"],
+        service,
+        ui["gender_a"],
+        ui["gender_b"],
+        ui["rounds"],
+    )
+
+    opener_entry, history = get_opening_message(
+        agent_a, disp_a, ui["model_name"], service
+    )
+    update_transcript(
+        container,
+        placeholders,
+        messages,
+        "A",
+        opener_entry[1],
+        ui["gender_a"],
+        ui["gender_b"],
+    )
+
+    # dialogue rounds --------------------------------------------------------
+    for turn in range(ui["rounds"]):
+        time.sleep(0.4)
+
+        # B’s reply
+        b_entry, history = get_next_response(
+            agent_b,
+            agent_a,
+            disp_b,
+            turn,
+            "B",
+            history,
+            ui["model_name"],
+            service,
+        )
+        update_transcript(
+            container,
+            placeholders,
+            messages,
+            "B",
+            b_entry[1],
+            ui["gender_a"],
+            ui["gender_b"],
+        )
+
+        time.sleep(0.4)
+
+        # A’s reply
+        a_entry, history = get_next_response(
+            agent_a,
+            agent_b,
+            disp_a,
+            turn,
+            "A",
+            history,
+            ui["model_name"],
+            service,
+        )
+        update_transcript(
+            container,
+            placeholders,
+            messages,
+            "A",
+            a_entry[1],
+            ui["gender_a"],
+            ui["gender_b"],
+        )
+
+    # ratings ----------------------------------------------------------------
+    score_a, score_b = get_date_ratings(
+        agent_a, agent_b, history, ui["model_name"], service
+    )
+
+    display_results(
+        transcript=[],  # we already printed lines live
+        score_a=score_a,
+        score_b=score_b,
+        name_a=ui["name_a"],
+        name_b=ui["name_b"],
+        model_name=ui["model_name"],
     )
 
 
-# Convenience: `python -m src.ui.layout` opens the app
+# convenience:  python -m src.ui.layout  -> launches Streamlit
 if __name__ == "__main__":
-    import streamlit.web.cli as stcli, sys
+    import sys, streamlit.web.cli as stcli
 
     sys.argv = ["streamlit", "run", __file__]
     sys.exit(stcli.main())
+
+# ------------------------------------------------------------------ #
+#  Back-compat: keep the old public name “setup_ui”                  #
+# ------------------------------------------------------------------ #
+setup_ui = _form  # ← add this line
 
 
 # ── src/ui/results.py

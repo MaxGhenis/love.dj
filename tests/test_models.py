@@ -21,6 +21,7 @@ from utils.models import (
     get_all_models,
     get_service_map,
     format_models_for_selectbox,
+    DEFAULT_MODEL_LABEL,
 )
 
 # Locate PrettyList for isinstance checks (EDSL moved it around a few times)
@@ -64,7 +65,7 @@ class TestModels(unittest.TestCase):
 
     def test_dropdown_strings(self) -> None:
         dd = format_models_for_selectbox()
-        self.assertIn("gpt-4o [openai]", dd)
+        self.assertIn(DEFAULT_MODEL_LABEL, dd)
         for entry in dd[:50]:  # spot-check format
             self.assertRegex(entry, r".+\s\[[^\]]+\]")
 

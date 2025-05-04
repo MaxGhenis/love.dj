@@ -17,6 +17,7 @@ from src.ui.transcript import (
     update_transcript,
 )
 from src.ui.results import display_results
+from src.utils.models import DEFAULT_MODEL_LABEL
 from src.models.simulation import (
     initialize_date,
     get_opening_message,
@@ -54,7 +55,9 @@ def _form() -> dict:
         rounds = st.slider("Back-and-forth rounds", 1, 6, 3)
 
         opts = format_models_for_selectbox()
-        default_ix = opts.index("gpt-4o [openai]") if "gpt-4o [openai]" in opts else 0
+        default_ix = (
+            opts.index(DEFAULT_MODEL_LABEL) if DEFAULT_MODEL_LABEL in opts else 0
+        )
         chosen = st.selectbox("Language model", opts, index=default_ix)
         model_name = chosen.rsplit(" ", 1)[0]  # strip " [provider]"
 
@@ -90,7 +93,7 @@ def main() -> None:
         st.error("Couldn’t find which service hosts that model. Pick another.")
         return
 
-    st.info(f"Using **{ui['model_name']}** via *{service}* service …")
+    st.info(f"Using **{ui['model_name']}** via *{service}* service…")
 
     # transcript container ---------------------------------------------------
     container, placeholders, messages = create_real_time_transcript_container()

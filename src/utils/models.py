@@ -13,6 +13,14 @@ import os
 from collections.abc import Sequence
 from typing import Dict, List, Set, Tuple
 
+# ---------------------------------------------------------------------------#
+#  Global default model                                                      #
+# ---------------------------------------------------------------------------#
+DEFAULT_MODEL_ID = "claude-3-7-sonnet-20250219"
+DEFAULT_PROVIDER = "anthropic"
+DEFAULT_MODEL_LABEL = f"{DEFAULT_MODEL_ID} [{DEFAULT_PROVIDER}]"
+
+
 # --------------------------------------------------------------------------- #
 #  Logging                                                                    #
 # --------------------------------------------------------------------------- #
@@ -111,20 +119,12 @@ def get_service_map() -> Dict[str, str]:
 def format_models_for_selectbox() -> List[str]:
     """
     Produce strings like  ``"gpt-4o  [openai]"`` for a Streamlit selectbox.
-
-    • Always includes **gpt-4o** and puts it on top for UX consistency.
     """
     models = get_all_models()
     svc = get_service_map()
 
     labelled = [f"{m} [{svc.get(m,'?')}]" for m in models]
     labelled = sorted(labelled, key=lambda s: s.lower())
-
-    # guarantee default at top
-    default = "gpt-4o [openai]"
-    if default in labelled:
-        labelled.remove(default)
-    labelled.insert(0, default)
 
     log.info("Prepared %d select-box entries", len(labelled))
     return labelled

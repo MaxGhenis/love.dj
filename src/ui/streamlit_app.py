@@ -3,6 +3,7 @@ import streamlit as st
 import os
 from src.models.simulation import run_date
 from src.utils.models import format_models_for_selectbox
+from src.utils.models import DEFAULT_MODEL_LABEL
 
 
 def setup_ui():
@@ -68,10 +69,15 @@ def setup_ui():
         """
 
         # Create a simple selectbox for model selection
+        default_ix = (
+            all_models.index(DEFAULT_MODEL_LABEL)
+            if DEFAULT_MODEL_LABEL in all_models
+            else 0
+        )
         model_name = st.selectbox(
             "Language Model",
             options=all_models,
-            index=default_model_index,
+            index=default_ix,
             help=model_help,
         )
 
