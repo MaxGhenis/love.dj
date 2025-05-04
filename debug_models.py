@@ -25,28 +25,52 @@ except ImportError as e:
 # Step 2: Check EDSL Model.check_working_models()
 print("\n2. Calling Model.check_working_models()...")
 try:
-    models_by_provider = Model.check_working_models()
-    print(f"✅ Got response from EDSL: {type(models_by_provider)}")
+    edsl_result = Model.check_working_models()
+    print(f"✅ Got response from EDSL: {type(edsl_result)}")
     
-    if not isinstance(models_by_provider, dict):
-        print(f"❌ Unexpected return type: {type(models_by_provider)}")
-        print(f"Value: {models_by_provider}")
-        sys.exit(1)
+    # Parse model data based on response format
+    all_model_names = []
+    
+    if isinstance(edsl_result, list):
+        # Newer EDSL returns a list of model info: [[provider, model_name, ...], ...]
+        print(f"EDSL returned a list with {len(edsl_result)} model entries")
         
-    # Count models
-    provider_count = len(models_by_provider)
-    print(f"Found {provider_count} providers")
+        # Extract model names and count by provider
+        provider_counts = {}
+        for model_info in edsl_result:
+            if isinstance(model_info, list) and len(model_info) >= 2:
+                provider = model_info[0]
+                model_name = model_info[1]
+                
+                # Count models per provider
+                provider_counts[provider] = provider_counts.get(provider, 0) + 1
+                
+                # Add to our list of model names
+                all_model_names.append(model_name)
+        
+        # Print provider statistics
+        print(f"Found models from {len(provider_counts)} providers:")
+        for provider, count in sorted(provider_counts.items()):
+            print(f"  • {provider}: {count} models")
     
-    # Count models per provider
-    all_models = []
-    for provider, models in models_by_provider.items():
-        model_count = len(models) if isinstance(models, list) else 0
-        print(f"  • {provider}: {model_count} models")
-        if isinstance(models, list):
-            all_models.extend(models)
+    elif isinstance(edsl_result, dict):
+        # Older EDSL returns a dictionary: {provider: [model_names], ...}
+        print(f"Found {len(edsl_result)} providers")
+        
+        # Count models per provider
+        for provider, models in edsl_result.items():
+            model_count = len(models) if isinstance(models, list) else 0
+            print(f"  • {provider}: {model_count} models")
+            if isinstance(models, list):
+                all_model_names.extend(models)
+    
+    else:
+        print(f"❌ Unexpected return type: {type(edsl_result)}")
+        print(f"Value (sample): {str(edsl_result)[:200]}...")
+        print("The rest of the analysis may not work correctly.")
     
     # Count unique models
-    unique_models = set(all_models)
+    unique_models = set(all_model_names)
     unique_count = len(unique_models)
     print(f"Total unique models: {unique_count}")
     
@@ -63,6 +87,17 @@ try:
     
     if missing_models:
         print(f"⚠️ Missing expected models: {', '.join(missing_models)}")
+    
+    # Save raw data to file for inspection
+    try:
+        import json
+        with open("edsl_models_raw.json", "w") as f:
+            json.dump(edsl_result, f, indent=2)
+        print("✅ Saved raw model data to edsl_models_raw.json")
+    except:
+        with open("edsl_models_raw.txt", "w") as f:
+            f.write(str(edsl_result))
+        print("✅ Saved raw model data to edsl_models_raw.txt")
         
 except Exception as e:
     print(f"❌ Error calling Model.check_working_models(): {e}")

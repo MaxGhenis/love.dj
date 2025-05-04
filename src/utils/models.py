@@ -34,34 +34,40 @@ def get_all_models():
     logger.info("Calling get_all_models()")
     try:
         # Get all models from EDSL's check_working_models
-        # This returns a dictionary where keys are providers and values are lists of models
         logger.info("Calling Model.check_working_models()")
-        models_by_provider = Model.check_working_models()
+        edsl_models = Model.check_working_models()
         
-        if not isinstance(models_by_provider, dict):
-            logger.error(f"Unexpected return type from Model.check_working_models(): {type(models_by_provider)}")
-            logger.error(f"Value: {models_by_provider}")
-            return ["gpt-4o"]
-        
-        # Log what we received
-        logger.info(f"Got response from check_working_models: {len(models_by_provider)} providers")
-        for provider, models in models_by_provider.items():
-            model_count = len(models) if isinstance(models, list) else 0
-            logger.info(f"Provider '{provider}': {model_count} models")
-            if model_count > 0 and isinstance(models, list):
-                sample = models[:3] if len(models) > 3 else models
-                logger.info(f"  Sample: {sample}")
-        
-        # Flatten the dictionary into a single list of models
+        # Handle the format that EDSL actually returns (a list of model info)
+        # Each model is in format: [provider, model_name, ...]
         all_models = []
-        for provider, provider_models in models_by_provider.items():
-            # Skip if provider_models is not a list
-            if not isinstance(provider_models, list):
-                logger.warning(f"Provider '{provider}' has non-list value: {type(provider_models)}")
-                continue
-                
-            # Add all models from this provider
-            all_models.extend(provider_models)
+        
+        if isinstance(edsl_models, list):
+            logger.info(f"Got list response from check_working_models: {len(edsl_models)} models")
+            
+            # Extract model names from the list of model info
+            for model_info in edsl_models:
+                if isinstance(model_info, list) and len(model_info) >= 2:
+                    # Format is [provider, model_name, ...]
+                    provider = model_info[0]
+                    model_name = model_info[1]
+                    all_models.append(model_name)
+            
+            logger.info(f"Extracted {len(all_models)} model names")
+            
+        elif isinstance(edsl_models, dict):
+            # Handle dictionary format (for backwards compatibility)
+            logger.info(f"Got dictionary response from check_working_models: {len(edsl_models)} providers")
+            
+            # Flatten the dictionary into a single list of models
+            for provider, provider_models in edsl_models.items():
+                if isinstance(provider_models, list):
+                    all_models.extend(provider_models)
+                else:
+                    logger.warning(f"Provider '{provider}' has non-list value: {type(provider_models)}")
+        else:
+            logger.error(f"Unexpected type from check_working_models(): {type(edsl_models)}")
+            logger.error(f"Value sample: {str(edsl_models)[:500]}...")
+            return ["gpt-4o"]
         
         # Remove any duplicates and sort alphabetically
         all_models = sorted(set(all_models))
