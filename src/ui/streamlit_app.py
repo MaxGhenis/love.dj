@@ -52,29 +52,29 @@ def setup_ui():
 
         # Get models for the dropdown directly from EDSL
         all_models = format_models_for_selectbox()
-        
+
         # Find the index of the default model (gpt-4o)
         default_model_index = 0
         for i, model in enumerate(all_models):
             if model == "gpt-4o":
                 default_model_index = i
                 break
-                
+
         # Add help text for the model selector
         model_help = """
         Select a language model to use for the date simulation.
         
         These models are retrieved directly from EDSL's available models.
         """
-        
+
         # Create a simple selectbox for model selection
         model_name = st.selectbox(
             "Language Model",
             options=all_models,
             index=default_model_index,
-            help=model_help
+            help=model_help,
         )
-        
+
         # Service name is always auto-detected
         service_name = "None (auto)"
     with col4:
@@ -85,7 +85,7 @@ def setup_ui():
         )
 
     go = st.button("🚀 Spin the decks")
-    
+
     # Add footer with EDSL info
     st.markdown("---")
     st.markdown(
@@ -96,7 +96,7 @@ def setup_ui():
         <a href="https://github.com/expectedparrot/edsl" target="_blank">GitHub</a>
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
     return {

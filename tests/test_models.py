@@ -1,8 +1,5 @@
 """
-Integration tests for the model helpers.
-
-They *hit the live EDSL API*, so make sure your EDSL credentials /
-environment variables are configured before running `pytest`.
+Tests for the model-helper utilities (live-hits EDSL).
 """
 
 from __future__ import annotations
@@ -12,96 +9,69 @@ import sys
 import unittest
 from collections.abc import Sequence
 
-# --------------------------------------------------------------------------- #
-#  Dynamic import path handling                                                #
-# --------------------------------------------------------------------------- #
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SRC = ROOT / "src"
-sys.path.insert(0, str(SRC))  # so `import utils.models` works
+sys.path.insert(0, str(ROOT / "src"))
 
-# --------------------------------------------------------------------------- #
-#  Imports                                                                     #
-# --------------------------------------------------------------------------- #
 try:
     from edsl import Model  # type: ignore
 except Exception:
     Model = None  # type: ignore[assignment]
 
-from utils.models import get_all_models, format_models_for_selectbox  # noqa: E402
+from utils.models import (
+    get_all_models,
+    get_service_map,
+    format_models_for_selectbox,
+)
 
-# locate PrettyList for isinstance checks (EDSL has moved it around)
+# Locate PrettyList for isinstance checks (EDSL moved it around a few times)
 LIST_LIKE: tuple[type, ...] = (list,)
-for modpath in (
-    "edsl.utilities.PrettyList",
-    "edsl.util.pretty",
-    "edsl.pretty",
-):
+for p in ("edsl.utilities.PrettyList", "edsl.util.pretty", "edsl.pretty"):
     try:
-        mod = __import__(modpath, fromlist=["PrettyList"])
+        mod = __import__(p, fromlist=["PrettyList"])
         PrettyList = getattr(mod, "PrettyList")  # type: ignore[attr-defined]
         LIST_LIKE = (list, PrettyList)
         break
     except Exception:
-        continue
+        pass
 
 
-# --------------------------------------------------------------------------- #
-#  Helper                                                                      #
-# --------------------------------------------------------------------------- #
-def extract_model_names(raw) -> set[str]:
-    """
-    Pull **model names** out of EDSL’s heterogeneous structures.
-    """
-    names: set[str] = set()
-
+def _extract(raw) -> set[str]:
     if isinstance(raw, LIST_LIKE):
-        for row in raw:
-            if isinstance(row, Sequence) and len(row) >= 2:
-                names.add(str(row[1]))
-
-    elif isinstance(raw, dict):
-        for lst in raw.values():
-            if isinstance(lst, Sequence):
-                names.update(map(str, lst))
-
-    else:  # totally new structure – fail fast
-        raise TypeError(f"Unsupported EDSL payload type: {type(raw)!r}")
-
-    return names
+        return {str(r[1]) for r in raw if isinstance(r, Sequence) and len(r) >= 2}
+    if isinstance(raw, dict):
+        out: set[str] = set()
+        for v in raw.values():
+            if isinstance(v, Sequence):
+                out.update(map(str, v))
+        return out
+    raise TypeError(type(raw))
 
 
-# --------------------------------------------------------------------------- #
-#  Tests                                                                       #
-# --------------------------------------------------------------------------- #
 class TestModels(unittest.TestCase):
     @unittest.skipIf(Model is None, "EDSL not installed")
-    def test_edsl_raw_looks_sane(self) -> None:
-        raw = Model.check_working_models()
-        self.assertIsInstance(raw, (dict, Sequence))
+    def test_service_mapping_is_complete(self) -> None:
+        """Every model reported by EDSL has an associated service."""
+        edsl_models = _extract(Model.check_working_models())
+        map_ = get_service_map()
 
-        models = extract_model_names(raw)
-        self.assertGreater(len(models), 10, "Suspiciously few models extracted")
+        self.assertTrue(edsl_models)  # sanity
+        self.assertGreaterEqual(len(map_), len(edsl_models) - 5)
 
-    @unittest.skipIf(Model is None, "EDSL not installed")
-    def test_get_all_models_supersets_edsl(self) -> None:
-        expected = extract_model_names(Model.check_working_models())
-        result = get_all_models()
+        missing = [m for m in edsl_models if m not in map_]
+        self.assertLess(len(missing), 5, f"Missing service for: {missing[:5]}")
 
-        self.assertIsInstance(result, list)
-        self.assertEqual(result, sorted(result))
+        self.assertEqual(map_.get("gpt-4o"), "openai")
 
-        missing = expected.difference(result)
-        loss = len(missing) / max(1, len(expected))
-        self.assertLess(loss, 0.05, f"Lost too many models ({loss:.1%})")
+    def test_dropdown_strings(self) -> None:
+        dd = format_models_for_selectbox()
+        self.assertIn("gpt-4o [openai]", dd)
+        for entry in dd[:50]:  # spot-check format
+            self.assertRegex(entry, r".+\s\[[^\]]+\]")
 
-        self.assertIn("gpt-4o", result)
-
-    def test_selectbox_includes_default(self) -> None:
-        dropdown = format_models_for_selectbox()
-        self.assertIn("gpt-4o", dropdown)
-
-        base = set(get_all_models())
-        self.assertTrue(base.issubset(dropdown))
+    def test_superset_of_edsl(self) -> None:
+        expected = _extract(Model.check_working_models()) if Model else set()
+        actual = set(get_all_models())
+        self.assertTrue(expected.issubset(actual))
 
 
 if __name__ == "__main__":  # pragma: no cover
