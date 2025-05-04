@@ -2,6 +2,7 @@
 import streamlit as st
 import os
 from src.models.simulation import run_date
+from src.utils.models import format_models_for_selectbox
 
 
 def setup_ui():
@@ -49,38 +50,33 @@ def setup_ui():
     with col3:
         rounds = st.slider("How many back-and-forths?", 1, 6, value=3)
 
-        # Split into two columns for model name and service provider
-        model_col1, model_col2 = st.columns([3, 2])
-
-        with model_col1:
-            model_name = st.text_input(
-                "Model name",
-                value="gpt-4o",
-                help="Enter any model name that EDSL supports (e.g., gpt-4o, claude-3-opus-20240229, gemini-1.5-pro)",
-            )
-
-        with model_col2:
-            service_providers = [
-                "None (auto)",
-                "anthropic",
-                "azure",
-                "bedrock",
-                "deep_infra",
-                "deepseek",
-                "google",
-                "groq",
-                "mistral",
-                "ollama",
-                "openai",
-                "perplexity",
-                "together",
-            ]
-            service_name = st.selectbox(
-                "Service provider",
-                options=service_providers,
-                index=0,
-                help="Select the service provider for this model",
-            )
+        # Get models for the dropdown directly from EDSL
+        all_models = format_models_for_selectbox()
+        
+        # Find the index of the default model (gpt-4o)
+        default_model_index = 0
+        for i, model in enumerate(all_models):
+            if model == "gpt-4o":
+                default_model_index = i
+                break
+                
+        # Add help text for the model selector
+        model_help = """
+        Select a language model to use for the date simulation.
+        
+        These models are retrieved directly from EDSL's available models.
+        """
+        
+        # Create a simple selectbox for model selection
+        model_name = st.selectbox(
+            "Language Model",
+            options=all_models,
+            index=default_model_index,
+            help=model_help
+        )
+        
+        # Service name is always auto-detected
+        service_name = "None (auto)"
     with col4:
         theme = st.text_input(
             "Date location/theme (optional)",
@@ -89,6 +85,19 @@ def setup_ui():
         )
 
     go = st.button("🚀 Spin the decks")
+    
+    # Add footer with EDSL info
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style="text-align: center; font-size: 0.8em; color: #888;">
+        Powered by <a href="https://www.expectedparrot.com/" target="_blank">EDSL</a> • 
+        <a href="https://www.expectedparrot.com/models" target="_blank">Supported Models</a> •
+        <a href="https://github.com/expectedparrot/edsl" target="_blank">GitHub</a>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     return {
         "name_a": name_a,
@@ -99,7 +108,7 @@ def setup_ui():
         "gender_b": gender_b,
         "rounds": rounds,
         "model_name": model_name,
-        "service_name": None if service_name == "None (auto)" else service_name,
+        "service_name": None,  # Always use auto-detection
         "theme": theme,
         "go": go,
     }
