@@ -1,126 +1,122 @@
-# src/utils/models.py
-import os
+"""
+Utility helpers around EDSL’s `Model.check_working_models()`.
+
+✅  Works with all known EDSL formats:
+    • PrettyList / plain list → [[provider, model_name, …], …]
+    • Legacy dict            → {provider: [model_name, …], …}
+"""
+
+from __future__ import annotations
+
 import inspect
 import logging
+import os
+from collections.abc import Sequence
+from typing import List, Set
 
-# Set up logging
+# --------------------------------------------------------------------------- #
+#  Logging                                                                     #
+# --------------------------------------------------------------------------- #
+LOGFILE = "edsl_models.log"
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('edsl_models.log')
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(), logging.FileHandler(LOGFILE, encoding="utf-8")],
 )
-logger = logging.getLogger('edsl_models')
+log = logging.getLogger("edsl_models")
+log.info("Loading models utility from: %s", os.path.abspath(__file__))
 
-# Save the current file's path for debugging
-current_file = os.path.abspath(inspect.getframeinfo(inspect.currentframe()).filename)
-logger.info(f"Loading models utility from: {current_file}")
-
+# --------------------------------------------------------------------------- #
+#  EDSL import                                                                 #
+# --------------------------------------------------------------------------- #
 try:
-    from edsl import Model
-    logger.info("Successfully imported EDSL")
-except ImportError as e:
-    logger.error(f"Failed to import EDSL: {e}")
-    # We don't define a placeholder here because the main app depends on EDSL anyway
+    from edsl import Model  # type: ignore
 
-def get_all_models():
-    """Get all models directly from EDSL using Model.check_working_models().
-    
-    Returns:
-        list: Flat list of all available models
+    log.info("Successfully imported EDSL")
+except Exception as exc:  # pragma: no cover
+    Model = None  # type: ignore[assignment]
+    log.error("❌  Could not import EDSL: %s", exc)
+
+
+# --------------------------------------------------------------------------- #
+#  Helpers                                                                     #
+# --------------------------------------------------------------------------- #
+def _flatten_edsl(raw) -> list[str]:
     """
-    logger.info("Calling get_all_models()")
-    try:
-        # Get all models from EDSL's check_working_models
-        logger.info("Calling Model.check_working_models()")
-        edsl_models = Model.check_working_models()
-        
-        # Handle the format that EDSL actually returns (a list of model info)
-        # Each model is in format: [provider, model_name, ...]
-        all_models = []
-        
-        if isinstance(edsl_models, list):
-            logger.info(f"Got list response from check_working_models: {len(edsl_models)} models")
-            
-            # Extract model names from the list of model info
-            for model_info in edsl_models:
-                if isinstance(model_info, list) and len(model_info) >= 2:
-                    # Format is [provider, model_name, ...]
-                    provider = model_info[0]
-                    model_name = model_info[1]
-                    all_models.append(model_name)
-            
-            logger.info(f"Extracted {len(all_models)} model names")
-            
-        elif isinstance(edsl_models, dict):
-            # Handle dictionary format (for backwards compatibility)
-            logger.info(f"Got dictionary response from check_working_models: {len(edsl_models)} providers")
-            
-            # Flatten the dictionary into a single list of models
-            for provider, provider_models in edsl_models.items():
-                if isinstance(provider_models, list):
-                    all_models.extend(provider_models)
-                else:
-                    logger.warning(f"Provider '{provider}' has non-list value: {type(provider_models)}")
-        else:
-            logger.error(f"Unexpected type from check_working_models(): {type(edsl_models)}")
-            logger.error(f"Value sample: {str(edsl_models)[:500]}...")
-            return ["gpt-4o"]
-        
-        # Remove any duplicates and sort alphabetically
-        all_models = sorted(set(all_models))
-        
-        # If no models were found, fall back to default
-        if not all_models:
-            logger.warning("No models found in check_working_models, using fallback")
-            return ["gpt-4o"]
-            
-        # Log success
-        model_count = len(all_models)
-        logger.info(f"Found {model_count} unique models from EDSL")
-        
-        # If very few models found, that's suspicious 
-        if model_count < 10:
-            logger.warning(f"WARNING: Only found {model_count} models - suspiciously low!")
-            logger.warning(f"Models: {all_models}")
-        
-        return all_models
-    except Exception as e:
-        logger.error(f"Error getting working models from EDSL: {e}", exc_info=True)
-        # Return a minimal fallback list with just the default model
+    Normalise EDSL’s output into a **flat list** of model names.
+    """
+    names: Set[str] = set()
+
+    # PrettyList inherits from Sequence, so this catches both
+    if isinstance(raw, Sequence):
+        for row in raw:
+            if isinstance(row, Sequence) and len(row) >= 2:
+                names.add(str(row[1]))
+
+    elif isinstance(raw, dict):  # very old EDSL versions
+        for lst in raw.values():
+            if isinstance(lst, Sequence):
+                names.update(map(str, lst))
+
+    else:
+        log.error("Unknown data type from EDSL: %r", type(raw))
+
+    return sorted(names)
+
+
+# --------------------------------------------------------------------------- #
+#  Public API                                                                  #
+# --------------------------------------------------------------------------- #
+def get_all_models() -> list[str]:
+    """
+    Return **all** model IDs that EDSL reports, sorted alphabetically.
+
+    Falls back to ``['gpt-4o']`` if anything goes wrong so the Streamlit app
+    never crashes.
+    """
+    if Model is None:  # pragma: no cover – EDSL not installed
+        log.warning("EDSL missing – returning fallback list")
         return ["gpt-4o"]
 
-def format_models_for_selectbox():
-    """Format models for a Streamlit selectbox.
-    
-    Returns:
-        list: List of model names for the selectbox
-    """
-    logger.info("Calling format_models_for_selectbox()")
-    
-    # Get all models directly from EDSL
-    all_models = get_all_models()
-    
-    # Ensure gpt-4o is included as the default option
-    if "gpt-4o" not in all_models:
-        logger.info("Adding gpt-4o as it wasn't found in models list")
-        all_models.insert(0, "gpt-4o")
-    
-    # Log the final list
-    logger.info(f"Returning {len(all_models)} models for selectbox")
-    if len(all_models) <= 5:
-        logger.info(f"All models: {all_models}")
-    else:
-        logger.info(f"First 5 models: {all_models[:5]}...")
-    
-    return all_models
+    try:
+        log.info("Calling Model.check_working_models()")
+        raw = Model.check_working_models()
+        models: List[str] = _flatten_edsl(raw)
 
-# Try to call it once at module import time to help with debugging
-logger.info("Testing model utilities during module import")
-try:
-    models = get_all_models()
-    logger.info(f"Initial model check returned {len(models)} models")
-except Exception as e:
-    logger.error(f"Failed initial model check: {e}", exc_info=True)
+        if not models:  # something went wrong with parsing
+            raise ValueError("Parsed 0 model names")
+
+        log.info("Found %s unique models from EDSL", len(models))
+        return models
+
+    except Exception as exc:  # pragma: no cover
+        log.error("Error while fetching models: %s", exc, exc_info=True)
+        return ["gpt-4o"]
+
+
+def format_models_for_selectbox() -> list[str]:
+    """
+    Convenience helper for the Streamlit dropdown.
+
+    Ensures ``'gpt-4o'`` is *always* present as a sane default (and first).
+    """
+    base = get_all_models()
+
+    if "gpt-4o" not in base:
+        base.insert(0, "gpt-4o")
+    else:
+        # move it to the top for UX consistency
+        base = ["gpt-4o"] + [m for m in base if m != "gpt-4o"]
+
+    log.info("Select-box list prepared with %d entries", len(base))
+    return base
+
+
+# --------------------------------------------------------------------------- #
+#  Smoke test at import-time (helps during local dev)                          #
+# --------------------------------------------------------------------------- #
+if __name__ == "__main__":  # pragma: no cover
+    from pprint import pprint
+
+    pprint(format_models_for_selectbox()[:25])
