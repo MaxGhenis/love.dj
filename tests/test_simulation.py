@@ -27,14 +27,17 @@ def get_rating(model_name, agent, history_txt):
     return 8
 
 # Function to test (simplified version)
-def run_date(profile_a, profile_b, name_a, name_b, n_rounds, model_name, theme=None):
+def run_date(profile_a, profile_b, name_a, name_b, n_rounds, model_name, theme=None, age_a=28, age_b=30):
     # Use display names in transcript, defaulting to A/B if none provided
     display_a = name_a if name_a else "A"
     display_b = name_b if name_b else "B"
     
-    # Create agents
-    agent_a = create_agent(display_a, profile_a, DEFAULT_PROFILES["default_a"])
-    agent_b = create_agent(display_b, profile_b, DEFAULT_PROFILES["default_b"])
+    # Create agents with age information
+    enhanced_profile_a = f"{age_a} year old {profile_a}"
+    enhanced_profile_b = f"{age_b} year old {profile_b}"
+    
+    agent_a = create_agent(display_a, enhanced_profile_a, DEFAULT_PROFILES["default_a"])
+    agent_b = create_agent(display_b, enhanced_profile_b, DEFAULT_PROFILES["default_b"])
 
     transcript = []
     
@@ -58,7 +61,8 @@ class TestSimulation(unittest.TestCase):
         """Test the flow of a date simulation."""
         # Run the simulation with our mock functions
         transcript, rating_a, rating_b = run_date(
-            "Profile A", "Profile B", "Alice", "Bob", 1, "mock-model"
+            "Profile A", "Profile B", "Alice", "Bob", 1, "mock-model", 
+            age_a=25, age_b=27
         )
         
         # Verify results

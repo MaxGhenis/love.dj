@@ -32,6 +32,8 @@ def run_date(
     name_b: str,
     profile_b: str,
     gender_b: str,
+    age_a: int = 28,
+    age_b: int = 30,
     rounds: int = 3,
     theme: Optional[str] = None,
     model_name: str = "gpt-4o",
@@ -43,8 +45,8 @@ def run_date(
     """
     transcript: List[Tuple[str, str]] = []
     for n in range(rounds):
-        transcript.append(("A", f"Utterance {n+1} from {name_a or 'A'}"))
-        transcript.append(("B", f"Response  {n+1} from {name_b or 'B'}"))
+        transcript.append(("A", f"Utterance {n+1} from {name_a or 'A'} (age {age_a})"))
+        transcript.append(("B", f"Response  {n+1} from {name_b or 'B'} (age {age_b})"))
 
     return transcript, _fake_rating(), _fake_rating()
 
@@ -86,14 +88,20 @@ def initialize_date(
     """
     global _cached_agents, _cached_transcript, _cached_index, _cached_history_txt
 
-    display_a = name_a.strip() or "A"
-    display_b = name_b.strip() or "B"
+    display_a = name_a.strip() if name_a else "A"
+    display_b = name_b.strip() if name_b else "B"
 
     # create EDSL Agents
     agent_a = create_agent(display_a, profile_a, DEFAULT_PROFILES["default_a"])
     agent_a.traits["gender"] = gender_a
     agent_b = create_agent(display_b, profile_b, DEFAULT_PROFILES["default_b"])
     agent_b.traits["gender"] = gender_b
+
+    # Add theme/location context if provided
+    if theme:
+        theme_intro = f"You are on a date at {theme}. "
+        agent_a.traits["guidelines"] = theme_intro + agent_a.traits.get("guidelines", "")
+        agent_b.traits["guidelines"] = theme_intro + agent_b.traits.get("guidelines", "")
 
     _cached_agents = (agent_a, agent_b, display_a, display_b, model_name, service_name)
     _cached_transcript = []

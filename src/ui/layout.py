@@ -35,18 +35,48 @@ def _form() -> dict:
     # profiles ---------------------------------------------------------------
     c1, c2 = st.columns(2)
     with c1:
-        name_a = st.text_input("Person A’s name")
-        gender_a = st.selectbox(
-            "Person A’s pronouns", ["he/him", "she/her", "they/them"]
+        name_a = st.text_input("Person A's name")
+        
+        # Age input for person A
+        age_a = st.number_input(
+            "Person A's age",
+            min_value=18,
+            max_value=99,
+            value=28,
+            step=1,
+            help="Age in years",
         )
-        profile_a = st.text_area("Profile A", height=140)
+        
+        gender_a = st.selectbox(
+            "Person A's pronouns", ["he/him", "she/her", "they/them"]
+        )
+        profile_a = st.text_area(
+            "Profile A",
+            height=120, 
+            placeholder="e.g. product-manager, loves jazz & climbing…"
+        )
 
     with c2:
-        name_b = st.text_input("Person B’s name")
-        gender_b = st.selectbox(
-            "Person B’s pronouns", ["he/him", "she/her", "they/them"], index=1
+        name_b = st.text_input("Person B's name")
+        
+        # Age input for person B
+        age_b = st.number_input(
+            "Person B's age",
+            min_value=18,
+            max_value=99,
+            value=30,
+            step=1,
+            help="Age in years",
         )
-        profile_b = st.text_area("Profile B", height=140)
+        
+        gender_b = st.selectbox(
+            "Person B's pronouns", ["he/him", "she/her", "they/them"], index=1
+        )
+        profile_b = st.text_area(
+            "Profile B", 
+            height=120,
+            placeholder="e.g. PhD student, avid reader, vegan…"
+        )
 
     # date settings ----------------------------------------------------------
     st.subheader("Date settings")
@@ -68,9 +98,11 @@ def _form() -> dict:
 
     return dict(
         name_a=name_a,
+        age_a=age_a,
         profile_a=profile_a,
         gender_a=gender_a,
         name_b=name_b,
+        age_b=age_b,
         profile_b=profile_b,
         gender_b=gender_b,
         rounds=rounds,
@@ -90,7 +122,7 @@ def main() -> None:
     provider_map = get_service_map()
     service = provider_map.get(ui["model_name"])
     if service is None:
-        st.error("Couldn’t find which service hosts that model. Pick another.")
+        st.error("Couldn't find which service hosts that model. Pick another.")
         return
 
     st.info(f"Using **{ui['model_name']}** via *{service}* service…")
@@ -98,10 +130,14 @@ def main() -> None:
     # transcript container ---------------------------------------------------
     container, placeholders, messages = create_real_time_transcript_container()
 
+    # Enhance profiles with age
+    enhanced_profile_a = f"{ui['age_a']} year old {ui['profile_a']}"
+    enhanced_profile_b = f"{ui['age_b']} year old {ui['profile_b']}"
+    
     # initialise agents & opener --------------------------------------------
     agent_a, agent_b, disp_a, disp_b = initialize_date(
-        ui["profile_a"],
-        ui["profile_b"],
+        enhanced_profile_a,
+        enhanced_profile_b,
         ui["name_a"],
         ui["name_b"],
         ui["model_name"],
@@ -129,7 +165,7 @@ def main() -> None:
     for turn in range(ui["rounds"]):
         time.sleep(0.4)
 
-        # B’s reply
+        # B's reply
         b_entry, history = get_next_response(
             agent_b,
             agent_a,
@@ -152,7 +188,7 @@ def main() -> None:
 
         time.sleep(0.4)
 
-        # A’s reply
+        # A's reply
         a_entry, history = get_next_response(
             agent_a,
             agent_b,
@@ -196,6 +232,6 @@ if __name__ == "__main__":
     sys.exit(stcli.main())
 
 # ------------------------------------------------------------------ #
-#  Back-compat: keep the old public name “setup_ui”                  #
+#  Back-compat: keep the old public name "setup_ui"                  #
 # ------------------------------------------------------------------ #
 setup_ui = _form  # ← add this line

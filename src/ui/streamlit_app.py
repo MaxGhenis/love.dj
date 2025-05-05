@@ -15,6 +15,16 @@ def setup_ui():
     with col1:
         name_a = st.text_input("Person A's name", value="")
 
+        # Age input for person A
+        age_a = st.number_input(
+            "Person A's age",
+            min_value=18,
+            max_value=99,
+            value=28,
+            step=1,
+            help="Age in years",
+        )
+        
         # Gender selection for person A
         gender_a = st.selectbox(
             "Person A's gender",
@@ -25,12 +35,22 @@ def setup_ui():
 
         profile_a = st.text_area(
             "Profile A (who is *this* person?)",
-            height=150,
-            placeholder="e.g. 28 y/o product-manager, loves jazz & climbing…",
+            height=130,
+            placeholder="e.g. product-manager, loves jazz & climbing…",
         )
     with col2:
         name_b = st.text_input("Person B's name", value="")
 
+        # Age input for person B
+        age_b = st.number_input(
+            "Person B's age",
+            min_value=18,
+            max_value=99,
+            value=30,
+            step=1,
+            help="Age in years",
+        )
+        
         # Gender selection for person B
         gender_b = st.selectbox(
             "Person B's gender",
@@ -41,8 +61,8 @@ def setup_ui():
 
         profile_b = st.text_area(
             "Profile B (and their date?)",
-            height=150,
-            placeholder="e.g. 30 y/o PhD student, avid reader, vegan…",
+            height=130,
+            placeholder="e.g. PhD student, avid reader, vegan…",
         )
 
     # Additional options
@@ -54,26 +74,20 @@ def setup_ui():
         # Get models for the dropdown directly from EDSL
         all_models = format_models_for_selectbox()
 
-        # Find the index of the default model (gpt-4o)
-        default_model_index = 0
-        for i, model in enumerate(all_models):
-            if model == "gpt-4o":
-                default_model_index = i
-                break
-
         # Add help text for the model selector
         model_help = """
         Select a language model to use for the date simulation.
         
-        These models are retrieved directly from EDSL's available models.
+        Models are listed in the format: 'model_name [provider]'
+        Where provider is the service that offers this model.
         """
 
-        # Create a simple selectbox for model selection
-        default_ix = (
-            all_models.index(DEFAULT_MODEL_LABEL)
-            if DEFAULT_MODEL_LABEL in all_models
-            else 0
-        )
+        # Find the default model using DEFAULT_MODEL_LABEL
+        default_ix = 0
+        if DEFAULT_MODEL_LABEL in all_models:
+            default_ix = all_models.index(DEFAULT_MODEL_LABEL)
+        
+        # Create a selectbox for model selection
         model_name = st.selectbox(
             "Language Model",
             options=all_models,
@@ -107,9 +121,11 @@ def setup_ui():
 
     return {
         "name_a": name_a,
+        "age_a": age_a,
         "profile_a": profile_a,
         "gender_a": gender_a,
         "name_b": name_b,
+        "age_b": age_b,
         "profile_b": profile_b,
         "gender_b": gender_b,
         "rounds": rounds,

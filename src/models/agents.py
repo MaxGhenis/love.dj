@@ -1,4 +1,15 @@
 # src/models/agents.py
+"""
+Agent helpers and prompting logic for *love.dj*.
+
+Public API
+----------
+create_agent(...)    → returns an EDSL Agent with persona + guidelines
+get_opener(...)      → first line of the date
+get_response(...)    → subsequent replies
+get_rating(...)      → 1-10 score from the agent at the end
+"""
+
 from edsl import (
     Agent,
     Model,
@@ -7,181 +18,133 @@ from edsl import (
     QuestionLinearScale,
 )
 
-# Default profiles if user doesn't provide any
+# Prompt text is centralised in src/prompts/date.py
+from src.prompts.date import GUIDELINES, OPENING_PROMPT, RESPONSE_PROMPT, RATING_PROMPT
+
+# ---------------------------------------------------------------------------#
+#  Default personas (used when the user leaves the profile box empty)        #
+# ---------------------------------------------------------------------------#
 DEFAULT_PROFILES = {
-    "default_a": "28 year old product manager living in San Francisco. Enjoys jazz music, rock climbing on weekends, and trying new restaurants. Looking for someone who is adventurous and has a good sense of humor.",
-    "default_b": "30 year old PhD student in literature. Avid reader, enjoys philosophical discussions, practicing yoga, and is a committed vegan. Values intellectual curiosity and authenticity in relationships.",
+    "default_a": (
+        "28-year-old product manager in San Francisco. Loves jazz, weekend rock-climbing, "
+        "and hunting for the best under-the-radar restaurants. Looking for an adventurous partner "
+        "with a playful sense of humour."
+    ),
+    "default_b": (
+        "30-year-old PhD student in literature. Avid reader who practises yoga to unwind and is a committed vegan. "
+        "Enjoys deep conversations, quiet coffee shops, and authenticity in relationships."
+    ),
 }
 
-# Conversation guidelines
-CONVERSATION_GUIDELINES = (
-    "Speak casually, in first-person, as if you're meeting for the first time. "
-    "Do **not** dump your full résumé; reveal details gradually and ask questions. "
-    "Feel free to use humour or small-talk."
-)
 
-
-def create_agent(name, profile, default_profile):
-    """Create an agent with the given name and profile."""
+# ---------------------------------------------------------------------------#
+#  Public helpers                                                            #
+# ---------------------------------------------------------------------------#
+def create_agent(name: str, profile: str, default_profile: str) -> Agent:
+    """Return an EDSL Agent with persona + conversation guidelines."""
     return Agent(
         name=name,
         traits={
             "persona": profile or default_profile,
-            "guidelines": CONVERSATION_GUIDELINES,
+            "guidelines": GUIDELINES,
         },
     )
 
 
-def get_opener(model_name, agent, service_name=None):
-    """Get an opening message from an agent."""
-    if service_name:
-        model = Model(model_name, service_name=service_name)
-        print(f"Model instance created for opener with service {service_name}: {model}")
-    else:
-        model = Model(model_name)
-        print(f"Model instance created for opener: {model}")
-    
-    # Create a scenario with gender information if it exists
+# ---------------------------------------------------------------------------#
+#  Turn helpers                                                              #
+# ---------------------------------------------------------------------------#
+def _build_model(model_name: str, service_name: str | None) -> Model:
+    return (
+        Model(model_name, service_name=service_name)
+        if service_name
+        else Model(model_name)
+    )
+
+
+def get_opener(
+    model_name: str, agent: Agent, *, service_name: str | None = None
+) -> str:
+    """First message on the date."""
+    model = _build_model(model_name, service_name)
+
+    scenario_fields = {"persona": agent.traits["persona"]}
     if "gender" in agent.traits:
-        scenario = Scenario({
-            "persona": agent.traits["persona"],
-            "gender": agent.traits["gender"],
-        })
-        
-        return (
-            QuestionFreeText(
-                question_name="opener",
-                question_text=(
-                    "You are {{ persona }} (using {{ gender }} pronouns) on a first date. "
-                    "Write a brief opening statement to introduce yourself and ask a question. "
-                    "DO NOT include your name at the beginning of your response as it will be added automatically. "
-                    "Just write your dialogue directly."
-                ),
-            )
-            .by(model)
-            .by(agent)
-            .by(scenario)
-            .run()
-            .select("opener")
-            .first()
-        )
-    else:
-        # Fallback to original behavior if no gender information
-        return (
-            QuestionFreeText(
-                question_name="opener",
-                question_text=(
-                    "You are on a first date. Write a brief opening statement to introduce yourself and ask a question. "
-                    "DO NOT include your name at the beginning of your response as it will be added automatically. "
-                    "Just write your dialogue directly."
-                ),
-            )
-            .by(model)
-            .by(agent)
-            .run()
-            .select("opener")
-            .first()
-        )
+        scenario_fields["gender"] = agent.traits["gender"]
+
+    return (
+        QuestionFreeText("opener", OPENING_PROMPT)
+        .by(model)
+        .by(agent)
+        .by(Scenario(scenario_fields))
+        .run()
+        .select("opener")
+        .first()
+    )
 
 
-def get_response(model_name, agent_self, agent_other, turn, speaker, history_txt, service_name=None):
-    """Get a response from an agent based on conversation history."""
-    if service_name:
-        model = Model(model_name, service_name=service_name)
-        print(f"Model instance created for response with service {service_name}: {model}")
-    else:
-        model = Model(model_name)
-        print(f"Model instance created for response: {model}")
-    
-    # Create a dictionary of scenario data with required fields
-    scenario_data = {
+def get_response(
+    model_name: str,
+    agent_self: Agent,
+    agent_other: Agent,
+    turn: int,
+    speaker: str,
+    history_txt: str,
+    *,
+    service_name: str | None = None,
+) -> str:
+    """Generate the next reply given the conversation so far."""
+    model = _build_model(model_name, service_name)
+
+    scenario_fields = {
         "chat": history_txt.strip(),
         "persona": agent_self.traits["persona"],
         "partner_persona": agent_other.traits["persona"],
+        "gender": agent_self.traits.get("gender", "he/him"),
+        "partner_gender": agent_other.traits.get("gender", "she/her"),
     }
-    
-    # Add gender information if available
-    if "gender" in agent_self.traits:
-        scenario_data["gender"] = agent_self.traits["gender"]
-    else:
-        # Default gender if not specified
-        scenario_data["gender"] = "he/him"
-        
-    if "gender" in agent_other.traits:
-        scenario_data["partner_gender"] = agent_other.traits["gender"]
-    
-    # Create the scenario with the data
-    scenario = Scenario(scenario_data)
-
-    q = QuestionFreeText(
-        question_name=f"turn_{turn}_{speaker}",
-        question_text=(
-            "You are {{ persona }} (using {{ gender }} pronouns) on a first date with {{ partner_persona }}. \n\n"
-            "{{ chat }}\n\n"
-            "Respond in character (≤ 120 words). DO NOT include your name at the beginning of your response as "
-            "it will be added automatically. Just write your dialogue directly."
-        ),
-    )
 
     return (
-        q.by(model)
+        QuestionFreeText(f"turn_{turn}_{speaker}", RESPONSE_PROMPT)
+        .by(model)
         .by(agent_self)
-        .by(scenario)
+        .by(Scenario(scenario_fields))
         .run()
         .select(f"turn_{turn}_{speaker}")
         .first()
     )
 
 
-def get_rating(model_name, agent, history_txt, service_name=None):
-    """Get a rating from an agent based on conversation history."""
-    if service_name:
-        model = Model(model_name, service_name=service_name)
-        print(f"Model instance created for rating with service {service_name}: {model}")
-    else:
-        model = Model(model_name)
-        print(f"Model instance created for rating: {model}")
-    
-    rating_question = QuestionLinearScale(
-        question_name="rating",
-        question_text=(
-            "{{ history }}\n\n"
-            "On a scale of 1–10, how would you rate this date? "
-            "(1 = Terrible • 10 = Amazing)\n"
-            "IMPORTANT: Respond with just the number from 1-10. No words or explanations."
-        ),
-        question_options=list(range(1, 11)),  # 1-10 inclusive
-        option_labels={1: "Terrible", 10: "Amazing"},
-    )
+def get_rating(
+    model_name: str,
+    agent: Agent,
+    history_txt: str,
+    *,
+    service_name: str | None = None,
+) -> int:
+    """Ask the agent to rate the date on a 1-10 scale."""
+    model = _build_model(model_name, service_name)
 
-    # Create scenario data with history
-    scenario_data = {"history": history_txt}
-    
-    # Add gender information if available
-    if "gender" in agent.traits:
-        scenario_data["gender"] = agent.traits["gender"]
-    
     result = (
-        rating_question.by(model)
+        QuestionLinearScale(
+            question_name="rating",
+            question_text=RATING_PROMPT,
+            question_options=list(range(1, 11)),  # 1-10 inclusive
+            option_labels={1: "Terrible", 10: "Amazing"},
+        )
+        .by(model)
         .by(agent)
-        .by(Scenario(scenario_data))
+        .by(Scenario({"history": history_txt}))
         .run()
         .select("rating")
         .first()
     )
-    
-    # Handle case where result might be None
-    if result is None:
-        return 5  # Default middle rating if no response
-    
-    # Try to convert to int, with fallback
+
+    # Robust parsing to ensure we always return an int 1-10
     try:
-        return int(result)
-    except (ValueError, TypeError):
-        # Try to extract a number if result is a string with text
-        if isinstance(result, str):
-            import re
-            numbers = re.findall(r'\d+', result)
-            if numbers:
-                return int(numbers[0])
-        return 5  # Default to middle rating if conversion fails
+        return int(result)  # type: ignore[arg-type]
+    except Exception:
+        import re
+
+        numbers = re.findall(r"\d+", str(result) if result is not None else "")
+        return int(numbers[0]) if numbers else 5  # default midpoint
