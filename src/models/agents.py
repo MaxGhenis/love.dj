@@ -61,7 +61,11 @@ def _build_model(model_name: str, service_name: str | None) -> Model:
 
         # Replies are at most 80 words; low effort leaves room for thinking
         # within the budget without adding latency to every conversational turn.
-        return SonnetModel(max_tokens=4096, output_config={"effort": "low"})
+        return SonnetModel(
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
+            output_config={"effort": "low"},
+        )
     return (
         Model(model_name, service_name=service_name)
         if service_name

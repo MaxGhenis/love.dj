@@ -66,9 +66,10 @@ def test_edsl_request_through_anthropic_sdk(model, thinking_first):
     request = captured[0]
     assert request["model"] == DEFAULT_MODEL_ID
     assert request["max_tokens"] == 4096
+    assert request["thinking"] == {"type": "adaptive"}
     assert request["output_config"] == {"effort": "low"}
     assert request["messages"][-1]["role"] == "user"
-    assert not ({"temperature", "top_p", "top_k", "thinking", "tool_choice"} & request.keys())
+    assert not ({"temperature", "top_p", "top_k", "tool_choice"} & request.keys())
 
 
 @pytest.mark.parametrize("content,stop_reason,error", [
@@ -182,6 +183,7 @@ def test_real_edsl_jobs_preserve_response_handling(model, monkeypatch, tmp_path,
     create.assert_awaited_once()
     request = create.await_args.kwargs
     assert request["model"] == DEFAULT_MODEL_ID
+    assert request["thinking"] == {"type": "adaptive"}
     assert request["output_config"] == {"effort": "low"}
     assert request["max_tokens"] == 4096
-    assert not ({"temperature", "top_p", "top_k", "thinking", "tool_choice"} & request.keys())
+    assert not ({"temperature", "top_p", "top_k", "tool_choice"} & request.keys())

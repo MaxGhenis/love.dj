@@ -13,9 +13,10 @@ A dating simulator powered by AI that simulates conversations between two people
 
 The default is `claude-sonnet-5-5` through Anthropic, including when EDSL's
 model catalog is unavailable or has not yet listed it. Short replies and ratings
-use low effort and a 4,096-token budget. This default runs locally through EDSL
-with an Anthropic API key (`ANTHROPIC_API_KEY`); an Expected Parrot key alone is
-insufficient. Local execution preserves the app's refusal and text-block handling.
+use adaptive thinking at low effort and a 4,096-token budget. This default runs
+locally through EDSL with an Anthropic API key (`ANTHROPIC_API_KEY`); an Expected
+Parrot key alone is insufficient. Local execution preserves the app's refusal
+and text-block handling.
 Other models remain selectable through EDSL.
 
 ## Installation
