@@ -1,3 +1,4 @@
 streamlit>=1.26.0
-edsl @ git+https://github.com/expectedparrot/edsl@main
+edsl @ git+https://github.com/expectedparrot/edsl@e722fa513b0cfe8a6d7794f54105caf50377a042
+anthropic>=0.80.0,<0.81
 pytest>=7.4.0

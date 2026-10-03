@@ -16,7 +16,7 @@ from typing import Dict, List, Set, Tuple
 # ---------------------------------------------------------------------------#
 #  Global default model                                                      #
 # ---------------------------------------------------------------------------#
-DEFAULT_MODEL_ID = "claude-3-7-sonnet-20250219"
+DEFAULT_MODEL_ID = "claude-sonnet-5-5"
 DEFAULT_PROVIDER = "anthropic"
 DEFAULT_MODEL_LABEL = f"{DEFAULT_MODEL_ID} [{DEFAULT_PROVIDER}]"
 
@@ -55,13 +55,18 @@ def _normalise(raw) -> Tuple[List[str], Dict[str, str]]:
     names: Set[str] = set()
     svc_map: Dict[str, str] = {}
 
-    # PrettyList inherits from list/Sequence, so this covers legacy & new
+    # Current EDSL returns ModelList objects; older versions returned tuple rows.
     if isinstance(raw, Sequence):
         for row in raw:
             if isinstance(row, Sequence) and len(row) >= 2:
                 provider, model_id = row[0], str(row[1])
-                names.add(model_id)
-                svc_map.setdefault(model_id, provider)
+            else:
+                model_id = getattr(row, "model", None)
+                provider = getattr(row, "_inference_service_", None)
+                if not isinstance(model_id, str) or not isinstance(provider, str):
+                    continue
+            names.add(model_id)
+            svc_map.setdefault(model_id, provider)
 
     elif isinstance(raw, dict):  # very old EDSL
         for provider, lst in raw.items():
@@ -84,7 +89,7 @@ _MODEL_CACHE: List[str] | None = None
 
 
 def get_all_models() -> List[str]:
-    """Alphabetical list of every model EDSL reports (no services)."""
+    """Alphabetical list of EDSL models, including the supported app default."""
     global _MODEL_CACHE, _SERVICE_CACHE
 
     if _MODEL_CACHE is not None:
@@ -92,7 +97,9 @@ def get_all_models() -> List[str]:
 
     if Model is None:  # pragma: no cover
         log.warning("EDSL missing – using fallback list")
-        _MODEL_CACHE, _SERVICE_CACHE = ["gpt-4o"], {"gpt-4o": "openai"}
+        _MODEL_CACHE, _SERVICE_CACHE = [DEFAULT_MODEL_ID], {
+            DEFAULT_MODEL_ID: DEFAULT_PROVIDER
+        }
         return _MODEL_CACHE
 
     try:
@@ -100,12 +107,18 @@ def get_all_models() -> List[str]:
         models, _SERVICE_CACHE = _normalise(raw)
         if not models:
             raise ValueError("Parsed zero models")
+        # Discovery can lag behind provider releases. Keep the app default
+        # selectable instead of silently choosing the alphabetically first model.
+        models = sorted(set(models) | {DEFAULT_MODEL_ID})
+        _SERVICE_CACHE[DEFAULT_MODEL_ID] = DEFAULT_PROVIDER
         _MODEL_CACHE = models
         log.info("Discovered %d unique models", len(models))
         return models
     except Exception as exc:  # pragma: no cover
         log.error("Failed to fetch models: %s", exc, exc_info=True)
-        _MODEL_CACHE, _SERVICE_CACHE = ["gpt-4o"], {"gpt-4o": "openai"}
+        _MODEL_CACHE, _SERVICE_CACHE = [DEFAULT_MODEL_ID], {
+            DEFAULT_MODEL_ID: DEFAULT_PROVIDER
+        }
         return _MODEL_CACHE
 
 
@@ -118,7 +131,7 @@ def get_service_map() -> Dict[str, str]:
 
 def format_models_for_selectbox() -> List[str]:
     """
-    Produce strings like  ``"gpt-4o  [openai]"`` for a Streamlit selectbox.
+    Produce ``"model_id [provider]"`` strings for a Streamlit selectbox.
     """
     models = get_all_models()
     svc = get_service_map()
@@ -137,34 +150,3 @@ if __name__ == "__main__":  # pragma: no cover
     from pprint import pprint
 
     pprint(format_models_for_selectbox()[:30])
-
-# (append to the end of src/utils/models.py)
-
-
-# --------------------------------------------------------------------------- #
-#  Provider-lookup helper                                                     #
-# --------------------------------------------------------------------------- #
-def get_service_map() -> dict[str, str]:
-    """
-    Return a cached dict mapping **model_id ➜ provider/service name**.
-
-    Useful for attaching the correct `service_name` when constructing `Model`.
-    """
-    global _SERVICE_CACHE  # type: ignore
-    try:  # already built?
-        return _SERVICE_CACHE
-    except NameError:
-        raw = Model.check_working_models()
-        mapping: dict[str, str] = {}
-
-        if isinstance(raw, list):
-            for provider, model, *_ in raw:
-                mapping[str(model)] = str(provider)
-        elif isinstance(raw, dict):
-            for provider, models in raw.items():
-                for m in models:
-                    mapping[str(m)] = str(provider)
-
-        _SERVICE_CACHE = mapping
-        logger.info(f"Built service map with {len(mapping)} entries")
-        return mapping

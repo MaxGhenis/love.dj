@@ -20,6 +20,7 @@ from edsl import (
 
 # Prompt text is centralised in src/prompts/date.py
 from src.prompts.date import GUIDELINES, OPENING_PROMPT, RESPONSE_PROMPT, RATING_PROMPT
+from src.utils.models import DEFAULT_MODEL_ID, DEFAULT_PROVIDER
 
 # ---------------------------------------------------------------------------#
 #  Default personas (used when the user leaves the profile box empty)        #
@@ -55,11 +56,25 @@ def create_agent(name: str, profile: str, default_profile: str) -> Agent:
 #  Turn helpers                                                              #
 # ---------------------------------------------------------------------------#
 def _build_model(model_name: str, service_name: str | None) -> Model:
+    if model_name == DEFAULT_MODEL_ID and service_name in (None, DEFAULT_PROVIDER):
+        from .sonnet import SonnetModel
+
+        # Replies are at most 80 words; low effort leaves room for thinking
+        # within the budget without adding latency to every conversational turn.
+        return SonnetModel(max_tokens=4096, output_config={"effort": "low"})
     return (
         Model(model_name, service_name=service_name)
         if service_name
         else Model(model_name)
     )
+
+
+def _run_options(model_name: str, service_name: str | None) -> dict:
+    if model_name == DEFAULT_MODEL_ID and service_name in (None, DEFAULT_PROVIDER):
+        from .sonnet import LOCAL_RUN_OPTIONS
+
+        return LOCAL_RUN_OPTIONS
+    return {}
 
 
 def get_opener(
@@ -77,7 +92,7 @@ def get_opener(
         .by(model)
         .by(agent)
         .by(Scenario(scenario_fields))
-        .run()
+        .run(**_run_options(model_name, service_name))
         .select("opener")
         .first()
     )
@@ -109,7 +124,7 @@ def get_response(
         .by(model)
         .by(agent_self)
         .by(Scenario(scenario_fields))
-        .run()
+        .run(**_run_options(model_name, service_name))
         .select(f"turn_{turn}_{speaker}")
         .first()
     )
@@ -135,7 +150,7 @@ def get_rating(
         .by(model)
         .by(agent)
         .by(Scenario({"history": history_txt}))
-        .run()
+        .run(**_run_options(model_name, service_name))
         .select("rating")
         .first()
     )
