@@ -35,6 +35,14 @@ class SonnetModel(AnthropicService.create_model(DEFAULT_MODEL_ID)):
         inference_service="anthropic",
     )
 
+    async def async_execute_model_call(self, *args, **kwargs):
+        raw_response = await super().async_execute_model_call(*args, **kwargs)
+        # EDSL writes the raw response to its persistent cache as soon as this
+        # returns, before parsing it. Reject a refusal or no-text reply here so
+        # it is never cached and the next identical request calls the API.
+        self.response_handler.get_generated_token_string(raw_response)
+        return raw_response
+
 
 # Remote workers reconstruct generic EDSL models and would lose our reader.
 LOCAL_RUN_OPTIONS = {
