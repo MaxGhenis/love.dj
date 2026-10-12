@@ -16,7 +16,8 @@ model catalog is unavailable or has not yet listed it. Short replies and ratings
 use adaptive thinking at low effort and a 4,096-token budget. This default runs
 locally through EDSL with an Anthropic API key (`ANTHROPIC_API_KEY`); an Expected
 Parrot key alone is insufficient. Local execution preserves the app's refusal
-and text-block handling.
+and text-block handling. A refusal or a reply with no text raises an error and
+is not cached, so repeating the request calls the API again.
 Other models remain selectable through EDSL.
 
 ## Installation

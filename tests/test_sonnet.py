@@ -1,6 +1,7 @@
 """Offline coverage of the real EDSL and Anthropic SDK request path."""
 
 import asyncio
+import copy
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,6 +10,8 @@ import pytest
 from anthropic import AsyncAnthropic
 from edsl.language_models import LanguageModel
 from edsl.language_models.exceptions import LanguageModelBadResponseError
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from src.models import agents
 from src.models.sonnet import LOCAL_RUN_OPTIONS, SonnetModel
@@ -80,6 +83,67 @@ def test_edsl_request_through_anthropic_sdk(model, thinking_first):
 def test_refusal_and_empty_output_fail_loudly(model, content, stop_reason, error):
     with pytest.raises(LanguageModelBadResponseError, match=error):
         model.parse_response(response(content, stop_reason), is_free_text=True)
+
+
+TEXT = st.one_of(st.text(), st.sampled_from(["", " ", "\n", " \t\n"]))
+BLOCKS = st.lists(
+    st.one_of(
+        st.builds(lambda text: {"type": "text", "text": text}, TEXT),
+        st.builds(
+            lambda text: {"type": "thinking", "thinking": text, "signature": "test"},
+            TEXT,
+        ),
+        st.just({"type": "redacted_thinking", "data": "opaque"}),
+    ),
+    max_size=5,
+)
+STOP_REASONS = st.sampled_from(["end_turn", "max_tokens", "stop_sequence", "refusal"])
+
+
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(content=BLOCKS, stop_reason=STOP_REASONS)
+def test_cache_gate_accepts_exactly_what_parses(model, content, stop_reason):
+    """The pre-cache check and the parser accept the same responses.
+
+    Invariants, for every response: it is rejected iff it is a refusal or its
+    text blocks hold only whitespace; an accepted response passes through
+    unchanged and parses to its text blocks joined in order; thinking never
+    reaches the answer. A truncated (max_tokens) reply with text is accepted.
+    """
+    raw = response(content, stop_reason)
+    original = copy.deepcopy(raw)
+    expected = "\n\n".join(block["text"] for block in content if block["type"] == "text")
+    accepted = stop_reason != "refusal" and bool(expected.strip())
+    sdk_response = MagicMock()
+    sdk_response.model_dump.return_value = raw
+    client = MagicMock()
+    client.messages.create = AsyncMock(return_value=sdk_response)
+
+    def gate():
+        with patch(
+            "edsl.inference_services.services.anthropic_service.AsyncAnthropic",
+            return_value=client,
+        ):
+            return asyncio.run(model.async_execute_model_call("Hi", "Be brief"))
+
+    if accepted:
+        assert gate() == original
+        parsed = model.parse_response(raw, is_free_text=True)
+        assert parsed.generated_tokens == expected
+        assert parsed.answer == expected.strip()
+    else:
+        with pytest.raises(LanguageModelBadResponseError) as gate_error:
+            gate()
+        with pytest.raises(LanguageModelBadResponseError) as parse_error:
+            model.parse_response(raw, is_free_text=True)
+        message = str(gate_error.value).splitlines()[0]
+        assert message == str(parse_error.value).splitlines()[0]
+        assert message == (
+            "Sonnet refused the request."
+            if stop_reason == "refusal"
+            else "Sonnet returned no text."
+        )
+    assert raw == original
 
 
 def test_rating_ignores_thinking(model):
@@ -187,3 +251,72 @@ def test_real_edsl_jobs_preserve_response_handling(model, monkeypatch, tmp_path,
     assert request["output_config"] == {"effort": "low"}
     assert request["max_tokens"] == 4096
     assert not ({"temperature", "top_p", "top_k", "tool_choice"} & request.keys())
+
+
+@pytest.mark.parametrize("helper", ["opener", "response", "rating"])
+@pytest.mark.parametrize(
+    "content,stop_reason,error",
+    [
+        ([{"type": "text", "text": "I cannot help."}], "refusal", "Sonnet refused"),
+        (
+            [{"type": "thinking", "thinking": "Out of budget", "signature": "test"}],
+            "max_tokens",
+            "Sonnet returned no text",
+        ),
+    ],
+    ids=["refusal", "thinking-only"],
+)
+def test_failed_replies_are_not_cached(
+    model, monkeypatch, tmp_path, helper, content, stop_reason, error
+):
+    """A failed reply must not be replayed from EDSL's persistent cache."""
+    from edsl.caching.cache_handler import CacheHandler
+    from edsl.config import CONFIG
+    from edsl.object_store import ObjectStore
+    from edsl.runner.models import TaskExecutionError
+
+    monkeypatch.setattr(ObjectStore, "default_root", staticmethod(lambda: tmp_path))
+    # Keep the app's run options, including EDSL's default on-disk cache, but
+    # point that cache at a scratch file. Only the credential comes from the fixture.
+    monkeypatch.setattr(CONFIG, "EDSL_DATABASE_PATH", f"sqlite:///{tmp_path / 'cache.db'}")
+    monkeypatch.delattr(CONFIG, "EDSL_SESSION_CACHE", raising=False)
+    monkeypatch.setattr(agents, "_build_model", lambda *args: model)
+    agent = agents.create_agent("Test", "A friendly person", "Unused")
+    agent.traits["gender"] = "they/them"
+    answer = "8" if helper == "rating" else "Hello."
+    failed, replied = MagicMock(), MagicMock()
+    failed.model_dump.return_value = response(content, stop_reason)
+    replied.model_dump.return_value = response([{"type": "text", "text": answer}])
+    # A third API call would raise StopAsyncIteration and fail the test.
+    create = AsyncMock(side_effect=[failed, replied])
+    client = MagicMock()
+    client.messages.create = create
+
+    if helper == "opener":
+        call = lambda: agents.get_opener(DEFAULT_MODEL_ID, agent)
+    elif helper == "response":
+        call = lambda: agents.get_response(DEFAULT_MODEL_ID, agent, agent, 1, "A", "Hi")
+    else:
+        call = lambda: agents.get_rating(DEFAULT_MODEL_ID, agent, "Hi")
+
+    def stored_responses():
+        # A new handler reopens the SQLite file, as a restarted app would.
+        return len(CacheHandler().get_cache())
+
+    with patch(
+        "edsl.inference_services.services.anthropic_service.AsyncAnthropic",
+        return_value=client,
+    ):
+        with pytest.raises(TaskExecutionError, match=error):
+            call()
+        assert create.await_count == 1
+        assert stored_responses() == 0
+
+        # The identical request reaches the API instead of replaying the failure.
+        assert call() == (8 if helper == "rating" else answer)
+        assert create.await_count == 2
+        assert stored_responses() == 1
+
+        # Successful replies stay cached.
+        assert call() == (8 if helper == "rating" else answer)
+        assert create.await_count == 2
