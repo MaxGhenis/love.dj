@@ -11,6 +11,15 @@ A dating simulator powered by AI that simulates conversations between two people
 - Set an optional location or theme for the date
 - Get ratings from both participants on how the date went
 
+The default is `claude-sonnet-5-5` through Anthropic, including when EDSL's
+model catalog is unavailable or has not yet listed it. Short replies and ratings
+use adaptive thinking at low effort and a 4,096-token budget. This default runs
+locally through EDSL with an Anthropic API key (`ANTHROPIC_API_KEY`); an Expected
+Parrot key alone is insufficient. Local execution preserves the app's refusal
+and text-block handling. A refusal or a reply with no text raises an error and
+is not cached, so repeating the request calls the API again.
+Other models remain selectable through EDSL.
+
 ## Installation
 
 1. Clone this repository
@@ -27,16 +36,23 @@ The application requires API keys to use language models through EDSL:
 
 1. Create a `.streamlit/secrets.toml` file in your project directory
 2. Use the `secrets.toml.example` file as a template
-3. Add your EDSL API key and any model provider API keys you want to use
+3. Set `ANTHROPIC_API_KEY` at the top level for the default model. Streamlit
+   exposes top-level secrets as environment variables for EDSL. For use outside
+   Streamlit, set this environment variable directly.
 
 Example `.streamlit/secrets.toml`:
 ```toml
+ANTHROPIC_API_KEY = "your-anthropic-api-key-here"
+
 [edsl]
 api_key = "your-edsl-api-key-here"
 
 [edsl.openai]
 api_key = "your-openai-api-key-here"
 ```
+
+The nested `[edsl.anthropic]` section alone does not configure the default's
+local Anthropic client; use the top-level key above.
 
 ### Streamlit Community Cloud Deployment
 
@@ -74,6 +90,10 @@ Run tests with pytest:
 ```
 pytest
 ```
+
+The tests mock model discovery and provider requests; they require no API keys
+and make no live model calls. The EDSL revision in `requirements.txt` is pinned
+to the adapter tested for Sonnet 5.5 request compatibility.
 
 ## Credits
 

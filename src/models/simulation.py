@@ -16,6 +16,8 @@ from __future__ import annotations
 import random
 from typing import List, Tuple, Optional
 
+from src.utils.models import DEFAULT_MODEL_ID
+
 
 # ---------------------------------------------------------------------------#
 #  Section 1 – deterministic implementation used by the tests                #
@@ -36,7 +38,7 @@ def run_date(
     age_b: int = 30,
     rounds: int = 3,
     theme: Optional[str] = None,
-    model_name: str = "gpt-4o",
+    model_name: str = DEFAULT_MODEL_ID,
     service_name: Optional[str] = None,
 ) -> Tuple[List[Tuple[str, str]], float | None, float | None]:
     """
